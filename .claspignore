@@ -1,0 +1,3 @@
+# rootDir 가 src/ 이므로 src 밖은 자동 제외. src 안에서 제외할 것만 적는다.
+**/*.test.js
+**/*.md

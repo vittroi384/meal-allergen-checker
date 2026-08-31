@@ -1,0 +1,25 @@
+<style>
+  body { font-family: -apple-system, 'Malgun Gothic', sans-serif; margin: 0; padding: 12px; color: #111827; }
+  p { margin: 0 0 8px; font-size: 13px; line-height: 1.5; }
+  textarea { width: 100%; height: 320px; box-sizing: border-box; font: 12px/1.4 Consolas, monospace; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px; }
+  button { margin-top: 8px; padding: 8px 14px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; font-size: 13px; cursor: pointer; }
+  .note { color: #6b7280; font-size: 12px; }
+  .ok { color: #059669; }
+</style>
+<p>아래 내용을 <b>복사</b>해 두었다가 새 계정의 사본에서 <b>메뉴 → 이관용 설정 가져오기</b>에 붙여넣으세요.</p>
+<p class="note">NEIS 인증키·문자/텔레그램 키·접속 비밀번호는 포함되지 않습니다(어떤 항목이 설정돼 있었는지 목록만). 새 계정에서 다시 입력해야 합니다.</p>
+<textarea id="json" readonly><?= json ?></textarea>
+<button onclick="copy()">클립보드에 복사</button> <span id="msg"></span>
+<script>
+  function copy() {
+    var ta = document.getElementById('json');
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) {}
+    if (navigator.clipboard) navigator.clipboard.writeText(ta.value).then(function () { done(true); }, function () { done(ok); });
+    else done(ok);
+  }
+  function done(ok) {
+    document.getElementById('msg').innerHTML = ok ? '<span class="ok">복사했습니다</span>' : '복사 실패 — 직접 선택해서 복사하세요';
+  }
+</script>

@@ -1,0 +1,17 @@
+{
+  "name": "meal-allergen-checker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "학교 급식 알레르기 판별 시스템 (Google Sheets + Apps Script)",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\"",
+    "push": "npm test && clasp push --force",
+    "deploy": "node scripts/deploy.js",
+    "open": "clasp open-container",
+    "logs": "clasp tail-logs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

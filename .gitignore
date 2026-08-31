@@ -1,0 +1,19 @@
+# clasp (scriptId 등 계정 종속 정보)
+.clasp.json
+.clasprc.json
+.deployment-id
+
+# node
+node_modules/
+npm-debug.log*
+
+# 로컬 비밀값/개인 데이터 — 절대 커밋 금지
+.env
+*.local.*
+data/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

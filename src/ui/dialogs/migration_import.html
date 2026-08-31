@@ -1,0 +1,57 @@
+<style>
+  body { font-family: -apple-system, 'Malgun Gothic', sans-serif; margin: 0; padding: 12px; color: #111827; }
+  p { margin: 0 0 8px; font-size: 13px; line-height: 1.5; }
+  textarea { width: 100%; height: 260px; box-sizing: border-box; font: 12px/1.4 Consolas, monospace; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px; }
+  button { margin-top: 8px; padding: 8px 14px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; font-size: 13px; cursor: pointer; }
+  button:disabled { background: #9ca3af; cursor: default; }
+  .note { color: #6b7280; font-size: 12px; }
+  .err { color: #dc2626; }
+  .ok { color: #059669; }
+  #preview { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px; font-size: 13px; margin-top: 8px; display: none; }
+  ul { margin: 4px 0 0; padding-left: 18px; }
+</style>
+<p>구 계정에서 내보낸 JSON 을 붙여넣고 <b>확인</b>을 누르세요. 설정 시트를 덮어쓰고 트리거를 다시 등록합니다.</p>
+<p class="note">이 시트가 이미 사본이라면 설정 시트 내용이 같을 수 있습니다 — 그래도 실행하면 트리거가 이 계정 소유로 재등록되므로 안전합니다.</p>
+<textarea id="json" placeholder='{"app":"meal-allergen-checker", ...}' oninput="onInput()"></textarea>
+<div id="preview"></div>
+<button id="btn" onclick="run()" disabled>가져오기 실행</button> <span id="msg"></span>
+<script>
+  var timer = null;
+  function onInput() {
+    clearTimeout(timer);
+    document.getElementById('btn').disabled = true;
+    timer = setTimeout(preview, 400);
+  }
+  function preview() {
+    var text = document.getElementById('json').value.trim();
+    var pv = document.getElementById('preview');
+    if (!text) { pv.style.display = 'none'; return; }
+    google.script.run.withSuccessHandler(function (r) {
+      pv.style.display = 'block';
+      if (!r.ok) { pv.innerHTML = '<span class="err">' + esc(r.error) + '</span>'; return; }
+      pv.innerHTML = '<b>' + esc(r.schoolName || '(학교명 없음)') + '</b> · 내보낸 시각 ' + esc(r.exportedAt) + ' · 설정 ' + r.settingCount + '개' +
+        (r.secretsConfigured.length ? '<br>새로 입력해야 할 비밀값: ' + esc(r.secretsConfigured.join(', ')) : '');
+      document.getElementById('btn').disabled = false;
+    }).withFailureHandler(function (e) { pv.style.display = 'block'; pv.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; })
+      .dialogPreviewMigration(text);
+  }
+  function run() {
+    var btn = document.getElementById('btn');
+    btn.disabled = true;
+    document.getElementById('msg').textContent = '가져오는 중…';
+    google.script.run.withSuccessHandler(function (r) {
+      if (!r.ok) { document.getElementById('msg').innerHTML = '<span class="err">' + esc(r.error) + '</span>'; btn.disabled = false; return; }
+      var html = '<span class="ok">완료 — 설정 ' + r.imported + '개 반영, 트리거 재등록.</span>';
+      if (r.secretsToEnter.length) {
+        html += '<div id="preview" style="display:block">다음 비밀값을 <b>웹앱 설정 화면</b>에서 다시 입력하세요:<ul>' +
+          r.secretsToEnter.map(function (k) { return '<li>' + esc(label(k)) + '</li>'; }).join('') + '</ul></div>';
+      }
+      document.getElementById('msg').innerHTML = html;
+    }).withFailureHandler(function (e) { document.getElementById('msg').innerHTML = '<span class="err">' + esc(e.message) + '</span>'; btn.disabled = false; })
+      .dialogImportMigration(document.getElementById('json').value);
+  }
+  function label(k) {
+    return { NEIS_API_KEY: 'NEIS 인증키', SMS_API_KEY: '문자 API 키', SMS_USER_ID: '문자 사용자 ID', SMS_API_SECRET: '문자 API 시크릿', TELEGRAM_BOT_TOKEN: '텔레그램 봇 토큰' }[k] || k;
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+</script>
