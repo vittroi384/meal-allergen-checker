@@ -76,7 +76,6 @@ function apiTelegramChats(token) {
 function apiSendTestNotice(token, kind) {
   requireSession(token, 'admin');
   if (kind === 'weekly') return runStaffWeekly_({ force: true, test: true });
-  if (kind === 'teacher') return runTeacherDaily_({ force: true, test: true });
   return runStaffDaily_({ force: true, test: true });
 }
 

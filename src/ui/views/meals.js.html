@@ -14,7 +14,7 @@ App.views.meals = {
       var configured = boot.secretStatus.NEIS_API_KEY && boot.settings['학교코드'];
       el.innerHTML =
         '<div class="page-head"><div><h2>급식 관리</h2><div class="sub">' + (boot.settings['학교명'] ? h(boot.settings['학교명']) + ' · ' : '') + '관리 끼니 ' + boot.mealTypes.join(', ') + (o.lastSync ? ' · 마지막 동기화 ' + h(o.lastSync.at || '') + (o.lastSync.ok ? ' 성공' : ' <span class="error-text">실패</span>') : '') + '</div></div>' +
-        '<div class="actions"><input type="month" id="ym" value="' + ym + '" style="width:auto"><a class="btn" href="#/calendar/' + ym + '">달력에서 보기</a></div></div>' +
+        '<div class="actions"><input type="month" id="ym" value="' + ym + '"><a class="btn" href="#/calendar/' + ym + '">달력에서 보기</a></div></div>' +
         (!configured ? '<div class="notice warn" style="margin-bottom:16px">NEIS 인증키와 학교가 설정되어야 자동 동기화가 됩니다. <a href="#/settings">설정으로 이동</a></div>' : '') +
         '<div class="grid cols-3" style="margin-bottom:16px">' +
         '<div class="card stat"><span class="label">' + Number(p[1]) + '월 급식일</span><span class="value">' + o.dayCount + '<span style="font-size:14px;color:var(--muted);font-weight:600"> 일</span></span><span class="hint">메뉴 ' + o.menuCount + '개</span></div>' +
@@ -65,9 +65,9 @@ App.views.meals = {
       App.$('#import').onclick = function () { App.mealImport(ym, reload); };
       var uncheckedByRow = {};
       o.unchecked.forEach(function (m) { uncheckedByRow[m._row] = m; });
-      el.addEventListener('click', function (e) {
+      App.on(el, 'click', function (e) {
         var b = e.target.closest('button');
-        if (!b) return;
+        if (!b || !el.contains(b)) return;
         if (b.dataset.check) { App.busy(b, true); App.api('apiMarkMenuChecked', Number(b.dataset.check), true).then(function () { App.toast('확인 처리했습니다', 'ok'); reload(); }).catch(function (err) { App.toast(err.message, 'danger'); App.busy(b, false); }); }
         if (b.dataset.edit) App.menuEditor(uncheckedByRow[b.dataset.edit], reload);
         if (b.dataset.revertDate) {

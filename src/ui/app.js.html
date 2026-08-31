@@ -44,10 +44,16 @@ var App = (function () {
     setTimeout(function () { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(function () { el.remove(); }, 300); }, type === 'danger' ? 5000 : 2800);
   }
   var modalStack = [];
+  /**
+   * 모달은 한 번에 하나만. 이미 열린 모달(확인창 제외)이 있으면 새 모달을 열지 않고 null 을 돌려준다.
+   * opts.stackable=true 인 작은 확인창만 기존 모달 위에 겹칠 수 있다.
+   */
   function modal(opts) {
+    if (!opts.stackable && modalStack.some(function (m) { return !m.__stackable; })) return null;
     var root = $('#modal-root');
     var wrap = document.createElement('div');
     wrap.className = 'modal-backdrop';
+    wrap.__stackable = !!opts.stackable;
     wrap.innerHTML =
       '<div class="modal ' + (opts.wide ? 'wide' : '') + '" role="dialog">' +
       '<div class="modal-head"><h3>' + h(opts.title || '') + '</h3><button class="btn icon ghost" data-close aria-label="닫기">✕</button></div>' +
@@ -63,11 +69,24 @@ var App = (function () {
   }
   function confirmDialog(title, text, okLabel, danger) {
     return new Promise(function (resolve) {
-      var m = modal({ title: title, body: '<p style="white-space:pre-wrap">' + h(text) + '</p>',
+      var m = modal({ title: title, body: '<p style="white-space:pre-wrap">' + h(text) + '</p>', stackable: true,
         footer: '<button class="btn" data-close>취소</button><button class="btn ' + (danger ? 'danger' : 'primary') + '" data-ok>' + h(okLabel || '확인') + '</button>',
         onClose: function () { resolve(false); } });
-      $('[data-ok]', m.el).addEventListener('click', function () { resolve(true); m.el.remove(); });
+      if (!m) { resolve(false); return; }
+      $('[data-ok]', m.el).addEventListener('click', function () { resolve(true); m.close(); });
     });
+  }
+  /**
+   * 화면 컨테이너에 위임 이벤트 핸들러를 "교체" 방식으로 건다.
+   * 화면을 다시 그릴 때마다 addEventListener 를 반복하면 핸들러가 누적되어 클릭 한 번에 여러 번 실행되므로(모달 중복 버그) 반드시 이 함수를 쓴다.
+   */
+  function on(el, type, fn) {
+    var key = '__h_' + type;
+    if (!el[key + '_bound']) {
+      el.addEventListener(type, function (e) { if (el[key]) el[key](e); });
+      el[key + '_bound'] = true;
+    }
+    el[key] = fn;
   }
 
   // ---------- API ----------
@@ -133,8 +152,7 @@ var App = (function () {
   /** 데이터 변경 종류별 무효화 */
   var INVALIDATE = {
     meals: ['dashboard', 'month:', 'day:', 'meals:'],
-    students: ['dashboard', 'month:', 'day:', 'students', 'classes', 'meals:'],
-    classes: ['dashboard', 'month:', 'day:', 'students', 'classes'],
+    students: ['dashboard', 'month:', 'day:', 'students', 'meals:'],
   };
   function changed(kind) { invalidate(INVALIDATE[kind] || null); }
   function prefetch(key, loader) { if (!Object.prototype.hasOwnProperty.call(dataCache, key)) setTimeout(function () { cached(key, loader).catch(function () {}); }, 300); }
@@ -255,7 +273,7 @@ var App = (function () {
       return apiNoAuth('apiCheckSession', t).then(function (r) { if (r.ok) return boot(); setToken(null); renderLogin(); });
     }).catch(function (e) { $('#app').innerHTML = '<div class="login-wrap"><div class="card"><div class="notice danger">앱을 시작하지 못했습니다: ' + h(e.message) + '</div></div></div>'; });
   }
-  return { start: start, api: api, apiNoAuth: apiNoAuth, loginPanel: loginPanel, views: views, state: state, h: h, $: $, $$: $$, toast: toast, modal: modal, confirm: confirmDialog, busy: busy,
+  return { start: start, api: api, apiNoAuth: apiNoAuth, loginPanel: loginPanel, views: views, state: state, h: h, $: $, $$: $$, toast: toast, modal: modal, confirm: confirmDialog, on: on, busy: busy,
     fmtDate: fmtDate, fmtDateLong: fmtDateLong, addDays: addDays, addMonths: addMonths, today: today, dow: dow, DAYS: DAYS,
     allergenName: allergenName, codeTags: codeTags, menuBadges: menuBadges, downloadXlsx: downloadXlsx, readFileBase64: readFileBase64, go: go, refreshBoot: refreshBoot, pad: pad,
     cached: cached, cachePut: cachePut, invalidate: invalidate, changed: changed, prefetch: prefetch, skeleton: skeleton };

@@ -6,7 +6,7 @@ const { loadCore } = require('./helpers/loadCore');
 const core = loadCore();
 
 const student = (over) =>
-  core.normalizeStudent(Object.assign({ schoolYear: 2026, grade: 3, classNo: 2, number: 15, name: '홍길동', codes: '', keywords: '', active: true }, over));
+  core.normalizeStudent(Object.assign({ schoolYear: 2026, grade: 3, classNo: 2, name: '홍길동', codes: '', keywords: '', active: true }, over));
 const menu = (over) =>
   core.normalizeMenu(Object.assign({ date: '2026-09-01', mealType: '중식', name: '쌀밥', codes: '' }, over));
 
@@ -35,7 +35,7 @@ test('normalizeMenu: needsCheck only when no codes and not checked-none', () => 
 });
 
 test('checkMeal matches by code intersection', () => {
-  const students = [student({ codes: '6,10' }), student({ number: 1, name: '김영희', codes: '2' })];
+  const students = [student({ codes: '6,10' }), student({ name: '김영희', codes: '2' })];
   const menus = [menu({ name: '돈까스', codes: '1,5,6,10' }), menu({ name: '쌀밥', codes: '-' })];
   const r = core.checkMeal(students, menus);
   assert.equal(r.affected.length, 1);
@@ -58,8 +58,8 @@ test('checkMeal matches keywords in menu name ignoring spaces/case', () => {
 
 test('checkMeal combines code and keyword reasons and sorts students', () => {
   const students = [
-    student({ grade: 3, classNo: 2, number: 20, name: 'B', codes: '6', keywords: '키위' }),
-    student({ grade: 1, classNo: 1, number: 1, name: 'A', codes: '6' }),
+    student({ grade: 3, classNo: 2, name: 'B', codes: '6', keywords: '키위' }),
+    student({ grade: 1, classNo: 1, name: 'A', codes: '6' }),
   ];
   const r = core.checkMeal(students, [menu({ name: '키위 파이', codes: '6' })]);
   assert.deepEqual(r.affected.map((a) => a.student.name), ['A', 'B']);
@@ -93,6 +93,9 @@ test('checkPeriod groups by date/mealType and honors allowed meal types', () => 
 
 test('formatStudentLabel / studentKey', () => {
   const s = student();
-  assert.equal(core.formatStudentLabel(s), '3-2-15 홍길동');
-  assert.equal(core.studentKey(s), '2026|3|2|15');
+  assert.equal(core.formatStudentLabel(s), '3-2 홍길동');
+  assert.equal(core.studentKey(s), '2026|3|2|홍길동');
+  assert.equal(core.studentKey(student({ name: '홍 길동' })), '2026|3|2|홍길동');
+  const sorted = core.sortStudents([student({ name: '나' }), student({ grade: 1, name: '다' }), student({ name: '가' })]);
+  assert.deepEqual(sorted.map((x) => x.grade + x.name), ['1다', '3가', '3나']);
 });

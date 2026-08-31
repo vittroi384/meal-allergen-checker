@@ -89,52 +89,6 @@ function runStaffDaily_(opts) {
     summary: date + ' 담당자 알림: 발송 ' + r.sent + ', 실패 ' + r.failed + ', 중복 건너뜀 ' + r.skipped + ' (해당 학생 ' + msg.affectedCount + '명)' };
 }
 
-/**
- * 담임 일일 알림: 반별로 자기 반 해당 학생만 담임 이메일로 발송.
- * @param opts { force, test, date }
- */
-function runTeacherDaily_(opts) {
-  var o = opts || {};
-  var settings = readSettings();
-  if (!o.force && !settingBool_(settings, '담임알림')) return { sent: 0, summary: '담임 알림이 꺼져 있습니다' };
-  if (!emailChannel_.isEnabled(settings)) return { sent: 0, failed: 0, summary: '이메일 채널이 꺼져 있어 담임 알림을 보낼 수 없습니다' };
-  var date = o.date || todayStr_();
-  var byType = checkDate_(date, settings);
-  // 반별로 묶기
-  var classes = {};
-  Object.keys(byType).forEach(function (t) {
-    byType[t].affected.forEach(function (a) {
-      var st = a.student;
-      var key = st.grade + '|' + st.classNo;
-      if (!classes[key]) classes[key] = { grade: st.grade, classNo: st.classNo, teacher: st.teacher || null, byType: {} };
-      (classes[key].byType[t] = classes[key].byType[t] || []).push(a);
-    });
-  });
-  var keys = Object.keys(classes).sort();
-  if (!keys.length) return { sent: 0, failed: 0, skipped: 0, summary: date + ' 해당 학생이 없어 담임 알림 없음' };
-  var done = readSuccessfulDedupeKeys_(addDays(date, -7));
-  var kind = o.test ? NOTICE_KINDS.TEST : NOTICE_KINDS.TEACHER_DAILY;
-  var out = { sent: 0, failed: 0, skipped: 0, noEmail: [] };
-  keys.forEach(function (k) {
-    var c = classes[k];
-    var email = c.teacher && c.teacher.email;
-    var msg = formatTeacherDaily({ date: date, schoolName: settings['학교명'], grade: c.grade, classNo: c.classNo, teacher: c.teacher, byType: c.byType, webAppUrl: getState('WEBAPP_URL') || settings['웹앱URL'] });
-    if (!email) {
-      out.noEmail.push(c.grade + '-' + c.classNo);
-      appendLog_({ channel: CHANNELS.EMAIL, kind: kind, recipient: '', targetDate: date, summary: msg.subject, ok: false, error: '담임 이메일 미등록 (' + c.grade + '-' + c.classNo + ')' });
-      out.failed++;
-      return;
-    }
-    var key = calcDedupeKey(kind, date, email, 'class:' + k + (o.test ? ':' + Date.now() : ''));
-    if (done[key]) { out.skipped++; return; }
-    var r = emailChannel_.send({ to: email, subject: msg.subject, text: msg.text, html: msg.html });
-    appendLog_({ channel: CHANNELS.EMAIL, kind: kind, recipient: email, targetDate: date, summary: msg.subject, ok: r.ok, error: r.error, dedupeKey: key });
-    r.ok ? out.sent++ : out.failed++;
-  });
-  out.summary = date + ' 담임 알림: 발송 ' + out.sent + '반, 실패 ' + out.failed + ', 중복 건너뜀 ' + out.skipped + (out.noEmail.length ? ' · 담임 이메일 미등록: ' + out.noEmail.join(', ') : '');
-  return out;
-}
-
 /** 담당자 주간 요약 (이번 주 월~일) */
 function runStaffWeekly_(opts) {
   var o = opts || {};

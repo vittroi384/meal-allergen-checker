@@ -38,7 +38,7 @@ function onOpen() {
 function onEdit(e) {
   try {
     var name = e && e.range ? e.range.getSheet().getName() : '';
-    if ([SHEETS.STUDENTS, SHEETS.CLASSES, SHEETS.MEALS, SHEETS.SETTINGS].indexOf(name) >= 0) bumpDataVersion_();
+    if ([SHEETS.STUDENTS, SHEETS.MEALS, SHEETS.SETTINGS].indexOf(name) >= 0) bumpDataVersion_();
   } catch (err) { /* 무시 */ }
 }
 
@@ -102,13 +102,10 @@ function _confirm(title, msg) {
 function ensureAllSheets_() {
   var ss = getSpreadsheet_();
 
-  // 학생
+  // 학생 (기존 시트는 열 구조 마이그레이션: 번호 제거, 담임이름·담임전화번호 삽입)
+  _migrateStudentColumns(ss.getSheetByName(SHEETS.STUDENTS));
   var st = ensureSheet_(SHEETS.STUDENTS, HEADERS.STUDENTS);
   _applyStudentValidations(st);
-
-  // 학급 (담임)
-  var cl = ensureSheet_(SHEETS.CLASSES, HEADERS.CLASSES);
-  _applyClassValidations(cl);
 
   // 급식
   var ml = ensureSheet_(SHEETS.MEALS, HEADERS.MEALS);
@@ -122,6 +119,7 @@ function ensureAllSheets_() {
   _seedSettings(sg);
 
   // 템플릿
+  _migrateStudentColumns(ss.getSheetByName(SHEETS.TEMPLATE));
   var tp = ensureSheet_(SHEETS.TEMPLATE, HEADERS.STUDENTS);
   _applyStudentValidations(tp);
   _applyTemplateNotes(tp);
@@ -136,7 +134,7 @@ function ensureAllSheets_() {
   applyAllFormatting_();
 
   // 시트 순서
-  var order = [SHEETS.STUDENTS, SHEETS.CLASSES, SHEETS.MEALS, SHEETS.SETTINGS, SHEETS.LOGS, SHEETS.TEMPLATE];
+  var order = [SHEETS.STUDENTS, SHEETS.MEALS, SHEETS.SETTINGS, SHEETS.LOGS, SHEETS.TEMPLATE];
   order.forEach(function (name, i) {
     var s = ss.getSheetByName(name);
     if (s) { ss.setActiveSheet(s); ss.moveActiveSheet(i + 1); }
@@ -159,7 +157,7 @@ function _applyStudentValidations(sheet) {
   var r;
   if ((r = _bodyRange(sheet, '학년'))) r.setDataValidation(dv().requireNumberBetween(1, 6).setAllowInvalid(false).setHelpText('1~6 숫자').build());
   if ((r = _bodyRange(sheet, '반'))) r.setDataValidation(dv().requireNumberGreaterThanOrEqualTo(1).setAllowInvalid(false).build());
-  if ((r = _bodyRange(sheet, '번호'))) r.setDataValidation(dv().requireNumberGreaterThanOrEqualTo(1).setAllowInvalid(false).build());
+  if ((r = _bodyRange(sheet, '담임전화번호'))) r.setNumberFormat('@');
   if ((r = _bodyRange(sheet, '학년도'))) r.setDataValidation(dv().requireNumberBetween(2000, 2100).setAllowInvalid(true).setHelpText('예: 2026 (비우면 현재 학년도)').build());
   if ((r = _bodyRange(sheet, '알레르기코드'))) {
     r.setNumberFormat('@');
@@ -172,14 +170,33 @@ function _applyStudentValidations(sheet) {
   if ((r = _bodyRange(sheet, '사용여부'))) r.setDataValidation(dv().requireCheckbox().build());
 }
 
-function _applyClassValidations(sheet) {
-  var dv = SpreadsheetApp.newDataValidation;
-  var r;
-  if ((r = _bodyRange(sheet, '학년'))) r.setDataValidation(dv().requireNumberBetween(1, 6).setAllowInvalid(false).setHelpText('1~6 숫자').build());
-  if ((r = _bodyRange(sheet, '반'))) r.setDataValidation(dv().requireNumberGreaterThanOrEqualTo(1).setAllowInvalid(false).build());
-  if ((r = _bodyRange(sheet, '학년도'))) r.setDataValidation(dv().requireNumberBetween(2000, 2100).setAllowInvalid(true).setHelpText('예: 2026 (비우면 현재 학년도)').build());
-  if ((r = _bodyRange(sheet, '담임연락처'))) r.setNumberFormat('@');
-  sheet.getRange(1, 1).setNote('학년도·학년·반 별 담임 정보. 웹앱 [학생 관리 → 학급/담임] 에서 편집하거나 엑셀에서 붙여넣을 수 있습니다.\n담임이메일이 있고 설정의 "담임알림" 이 켜져 있으면 매일 아침 자기 반 해당 학생을 메일로 받습니다.');
+/** 기존 시트에 header 열이 없으면 afterHeader 열 바로 뒤에 삽입 (새 시트는 ensureSheet_ 가 전체 헤더를 쓰므로 건너뜀) */
+function _ensureColumnAfter(sheet, header, afterHeader) {
+  if (!sheet || sheet.getLastRow() === 0) return;
+  var idx = headerIndex_(sheet);
+  if (idx[header] || !idx[afterHeader]) return;
+  sheet.insertColumnAfter(idx[afterHeader]);
+  sheet.getRange(1, idx[afterHeader] + 1).setValue(header);
+}
+
+/**
+ * 학생/템플릿 시트 열 구조 마이그레이션 (여러 번 실행해도 안전):
+ *  - '담임' → '담임이름' 으로 헤더명 변경
+ *  - '번호' 열 삭제 (식별키가 학년+반+이름으로 바뀜)
+ *  - '담임이름' 을 이름 뒤에, '담임전화번호' 를 담임이름 뒤에 삽입
+ */
+function _migrateStudentColumns(sheet) {
+  if (!sheet || sheet.getLastRow() === 0) return;
+  var idx = headerIndex_(sheet);
+  if (idx['담임'] && !idx['담임이름']) {
+    sheet.getRange(1, idx['담임']).setValue('담임이름');
+    idx = headerIndex_(sheet);
+  }
+  if (idx['번호']) {
+    sheet.deleteColumn(idx['번호']);
+  }
+  _ensureColumnAfter(sheet, '담임이름', '이름');
+  _ensureColumnAfter(sheet, '담임전화번호', '담임이름');
 }
 
 function _applyMealValidations(sheet) {
@@ -230,6 +247,9 @@ function _applyTemplateNotes(sheet) {
   var idx = headerIndex_(sheet);
   var notes = {
     '학년도': '비우면 현재 학년도로 채워집니다',
+    '이름': '학생 식별키는 학년+반+이름입니다. 같은 반 동명이인은 허용되지만 업로드 미리보기에서 경고합니다',
+    '담임이름': '같은 반은 담임이름·전화번호가 같아야 합니다. 다르면 업로드 미리보기에서 경고합니다',
+    '담임전화번호': '휴대폰 또는 학교 유선번호 (하이픈 무관)',
     '알레르기코드': '1 난류, 2 우유, 3 메밀, 4 땅콩, 5 대두, 6 밀, 7 고등어, 8 게, 9 새우, 10 돼지고기, 11 복숭아, 12 토마토, 13 아황산류, 14 호두, 15 닭고기, 16 쇠고기, 17 오징어, 18 조개류, 19 잣\n쉼표로 구분: 1,2,6',
     '기타알레르기': '19종 외 키워드. 메뉴명에 포함되면 해당으로 판별. 예: 키위,망고',
     '학부모알림': '없음 / 이메일 / 문자 중 하나 (비우면 없음)',

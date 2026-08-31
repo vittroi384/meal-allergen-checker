@@ -6,7 +6,13 @@ function apiStudents(token) {
   requireSession(token);
   var settings = readSettings();
   var schoolYear = currentSchoolYear_(settings);
-  return { schoolYear: schoolYear, students: attachTeachers(sortStudents(readStudents_()), teacherMap_(settings)).map(serializeStudent_) };
+  var all = sortStudents(readStudents_());
+  var active = filterActiveStudents(all, schoolYear);
+  return {
+    schoolYear: schoolYear,
+    students: attachTeachers(all, buildTeacherMapFromStudents(active)).map(serializeStudent_),
+    teacherConflicts: calcTeacherConflicts(active),
+  };
 }
 
 /**
@@ -18,13 +24,21 @@ function apiSaveStudent(token, raw) {
   var input = Object.assign({}, raw);
   if (Array.isArray(input.codes)) input.codes = input.codes.join(',');
   if (Array.isArray(input.keywords)) input.keywords = input.keywords.join(',');
-  var v = validateStudentRow(input, currentSchoolYear_());
+  var schoolYear = currentSchoolYear_();
+  var v = validateStudentRow(input, schoolYear);
   if (v.errors.length) return { ok: false, errors: v.errors };
   var st = v.student;
   var key = studentKey(st);
   var existing = readStudents_();
-  var conflict = existing.filter(function (s) { return studentKey(s) === key && s._row !== raw._row; })[0];
-  if (conflict) return { ok: false, errors: [st.grade + '-' + st.classNo + '-' + st.number + ' 은(는) 이미 ' + conflict.name + ' 학생이 사용 중입니다'] };
+  var warnings = [];
+  var sameName = existing.filter(function (s) { return studentKey(s) === key && s._row !== raw._row; });
+  if (sameName.length) warnings.push('같은 반에 동명이인(' + st.name + ')이 ' + (sameName.length + 1) + '명 있습니다. 비고 등으로 구분하세요');
+  // 담임 불일치 (저장 후 상태 기준)
+  var after = existing.filter(function (s) { return s._row !== raw._row; }).concat([st]);
+  var tmap = buildTeacherMapFromStudents(filterActiveStudents(after, schoolYear));
+  var t = tmap[st.grade + '|' + st.classNo];
+  if (t && t.conflict) warnings.push('같은 반(' + st.grade + '-' + st.classNo + ')의 담임 정보가 다릅니다: ' + formatTeacherCombos(t.combos));
+
   if (raw._row) {
     var target = existing.filter(function (s) { return s._row === raw._row; })[0];
     if (!target) return { ok: false, errors: ['수정할 학생을 찾지 못했습니다. 새로고침 후 다시 시도하세요'] };
@@ -33,7 +47,7 @@ function apiSaveStudent(token, raw) {
   } else {
     appendStudents_([st]);
   }
-  return { ok: true, student: serializeStudent_(st) };
+  return { ok: true, student: serializeStudent_(st), warnings: warnings };
 }
 
 function apiSetStudentActive(token, row, active) {
@@ -54,7 +68,7 @@ function studentRowsFromInput_(input) {
   else values = parseTsv(input.tsv);
   values = values.filter(function (r) { return r.some(function (c) { return String(c === null || c === undefined ? '' : c).trim() !== ''; }); });
   if (!values.length) throw new Error('읽을 데이터가 없습니다');
-  if (!detectHeaderRow(values[0], ['학년', '반', '번호', '이름'])) {
+  if (!detectHeaderRow(values[0], ['학년', '반', '이름'])) {
     values = [HEADERS.STUDENTS.slice()].concat(values);
   }
   return sanitizeRows_(tableToObjects(values, FIELD_MAP.STUDENTS));
@@ -78,7 +92,7 @@ function serializeMergePlan_(plan) {
     ok: plan.ok,
     summary: plan.summary,
     rows: plan.rows.map(function (r) {
-      return { _row: r._row, status: r.status, errors: r.errors, changedFields: r.changedFields, targetRow: r.targetRow, student: serializeStudent_(r.student) };
+      return { _row: r._row, status: r.status, errors: r.errors, warnings: r.warnings || [], changedFields: r.changedFields, targetRow: r.targetRow, student: serializeStudent_(r.student) };
     }),
   };
 }

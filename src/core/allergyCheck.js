@@ -65,8 +65,9 @@ function normalizeStudent(s) {
     schoolYear: s.schoolYear === '' || s.schoolYear === undefined ? null : Number(s.schoolYear),
     grade: Number(s.grade),
     classNo: Number(s.classNo),
-    number: Number(s.number),
     name: String(s.name || '').trim(),
+    teacherName: String(s.teacherName || '').trim(),
+    teacherPhone: String(s.teacherPhone || '').trim(),
     codes: parseAllergyCodes(s.codes),
     keywords: parseKeywords(s.keywords),
     note: String(s.note || ''),
@@ -77,20 +78,20 @@ function normalizeStudent(s) {
   };
 }
 
-/** 학생 고유키 '2026|3|2|15' */
+/** 학생 식별키 '2026|3|2|홍길동' (학년도+학년+반+이름). 동명이인은 같은 키를 가진다 */
 function studentKey(s) {
-  return [s.schoolYear, s.grade, s.classNo, s.number].join('|');
+  return [s.schoolYear, s.grade, s.classNo, String(s.name || '').replace(/\s+/g, '')].join('|');
 }
 
-/** '3-2-15 홍길동' */
+/** '3-2 홍길동' */
 function formatStudentLabel(s) {
-  return s.grade + '-' + s.classNo + '-' + s.number + ' ' + s.name;
+  return s.grade + '-' + s.classNo + ' ' + s.name;
 }
 
-/** 학년 → 반 → 번호 순 정렬 (원본 불변) */
+/** 학년 → 반 → 이름(가나다) 순 정렬 (원본 불변) */
 function sortStudents(students) {
   return students.slice().sort(function (a, b) {
-    return (a.grade - b.grade) || (a.classNo - b.classNo) || (a.number - b.number) || a.name.localeCompare(b.name, 'ko');
+    return (a.grade - b.grade) || (a.classNo - b.classNo) || a.name.localeCompare(b.name, 'ko') || ((a._row || 0) - (b._row || 0));
   });
 }
 

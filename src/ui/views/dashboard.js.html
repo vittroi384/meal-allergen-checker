@@ -31,10 +31,11 @@ App.views.dashboard = {
 
       html += '<div class="card"><div class="card-head"><h3>이번 주</h3><a class="btn sm" href="#/calendar/' + d.today.slice(0, 7) + '">달력 보기</a></div><div class="week-strip">' +
         d.week.map(function (w) {
-          var cls = 'week-day' + (w.isToday ? ' today' : '');
+          var dw = App.dow(w.date);
+          var cls = 'week-day' + (w.isToday ? ' today' : '') + (!w.hasMeals || dw === 0 || dw === 6 ? ' dim' : '');
           var n = !w.hasMeals ? '<div class="n none">—</div>' : '<div class="n ' + (w.affectedCount ? '' : 'zero') + '">' + w.affectedCount + '</div>';
-          return '<div class="' + cls + '" onclick="App.go(\'day/' + w.date + '\')"><div class="dl">' + h(w.label) + '</div>' + n +
-            (w.uncheckedCount ? '<span class="badge warn tiny">확인 ' + w.uncheckedCount + '</span>' : '') + (w.manualProtected ? '<span class="badge purple tiny">수동</span>' : '') + '</div>';
+          return '<div class="' + cls + '" data-day="' + w.date + '"><div class="dl">' + h(w.label) + '</div>' + n + '<div class="wb">' +
+            (w.uncheckedCount ? '<span class="badge warn tiny">확인 ' + w.uncheckedCount + '</span>' : '') + (w.manualProtected ? '<span class="badge purple tiny">수동</span>' : '') + '</div></div>';
         }).join('') + '</div></div>';
 
       d.mealTypes.forEach(function (t) {
@@ -42,11 +43,9 @@ App.views.dashboard = {
         html += '<div class="card"><div class="card-head"><h3>오늘 ' + h(t) + ' <span class="badge ' + (r.count ? 'danger' : 'ok') + '">' + (r.menus.length ? '해당 ' + r.count + '명' : '데이터 없음') + '</span>' + (r.protected ? '<span class="badge purple">수동 보호</span>' : '') + '</h3>' +
           '<a class="btn sm" href="#/day/' + d.today + '">메뉴 편집</a></div>';
         if (!r.menus.length) { html += '<div class="empty">오늘 ' + h(t) + ' 데이터가 없습니다. 주말·방학이 아니라면 <a href="#/meals">급식 관리</a>에서 동기화하세요.</div></div>'; return; }
-        html += '<div class="grid cols-2"><div><div class="small muted" style="margin-bottom:6px;font-weight:700">메뉴</div><div class="menu-list">' +
+        html += '<div class="grid cols-2"><div class="list-box"><div class="list-head"><span>메뉴</span><span class="badge gray">' + r.menus.length + '개</span></div><div class="list-scroll"><div class="menu-list">' +
           r.menus.map(function (m) { return '<div class="menu-item' + (m.needsCheck ? ' needs' : '') + '"><span class="name">' + h(m.name) + '</span><span class="tags">' + App.codeTags(m.codes) + '</span>' + App.menuBadges(m) + '</div>'; }).join('') +
-          '</div></div><div><div class="small muted" style="margin-bottom:6px;font-weight:700">해당 학생</div>' +
-          (r.affected.length ? '<div class="affected-list">' + r.affected.map(function (a) { return '<div class="affected-item"><div class="who">' + h(a.student.label) + ' <span class="small muted" style="font-weight:500">' + h(a.student.teacherLabel || '') + '</span></div><div class="why">' + h(a.text) + '</div></div>'; }).join('') + '</div>' : '<div class="empty">해당 학생 없음 🎉</div>') +
-          '</div></div></div>';
+          '</div></div></div>' + App.affectedListHtml(r.affected) + '</div></div>';
       });
 
       if (d.failures.length) {
@@ -54,7 +53,8 @@ App.views.dashboard = {
           d.failures.map(function (f) { return '<tr><td class="nowrap">' + h(f.sentAt) + '</td><td>' + h(f.kind) + '</td><td>' + h(f.channel) + '</td><td>' + h(f.error || f.summary) + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
       }
       el.innerHTML = html;
-      App.$('#dl-today').addEventListener('click', function (e) { App.downloadXlsx('day', { date: d.today }, e.currentTarget); });
+      App.$('#dl-today').onclick = function (e) { App.downloadXlsx('day', { date: d.today }, e.currentTarget); };
+      App.on(el, 'click', function (e) { var c = e.target.closest('[data-day]'); if (c) App.go('day/' + c.dataset.day); });
     });
   },
 };

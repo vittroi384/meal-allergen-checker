@@ -1,5 +1,5 @@
 <script>
-/* 설정: 학교, 끼니/시간, 담당자 연락처, 채널·비밀값, 학부모 알림, 테스트, 비밀번호, 트리거 */
+/* 설정: 학교·NEIS, 담당자 알림, 학부모 알림, 채널·비밀값, 테스트, 비밀번호, 트리거 */
 App.views.settings = {
   title: '설정',
   skeleton: 'form',
@@ -24,75 +24,87 @@ App.views.settings = {
       var sec = b.secretStatus;
       var chan = {};
       b.channels.forEach(function (c) { chan[c.id] = c; });
-      function secretRow(key, label, help) {
+      function secretField(key, label, help) {
         return '<div class="field full"><label>' + h(label) + ' ' + (sec[key] ? '<span class="badge ok">설정됨</span>' : '<span class="badge gray">미설정</span>') + '</label>' +
           '<div class="secret-row"><input type="password" data-secret="' + key + '" placeholder="' + (sec[key] ? '변경하려면 새 값 입력' : '값 입력') + '" autocomplete="new-password">' +
           (sec[key] ? '<button class="btn sm danger" data-clear="' + key + '">삭제</button>' : '') + '</div>' + (help ? '<span class="help">' + help + '</span>' : '') + '</div>';
       }
       function chanBadge(id) { var c = chan[id]; return c.enabled ? '<span class="badge ok">활성</span>' : '<span class="badge gray" title="' + h(c.reason) + '">비활성' + (c.reason ? ' · ' + h(c.reason) : '') + '</span>'; }
-      function sw(key, label) { return '<label class="check"><span class="switch"><input type="checkbox" data-set="' + key + '"' + (s[key] ? ' checked' : '') + '><span></span></span> ' + label + '</label>'; }
+      /** 토글 행: 라벨(+설명) 왼쪽, 상태 배지·스위치 오른쪽 */
+      function toggleRow(key, label, help, rightExtra) {
+        return '<div class="toggle-row"><div><span class="t-label">' + label + '</span>' + (help ? '<span class="t-help">' + help + '</span>' : '') + '</div>' +
+          '<div class="t-right">' + (rightExtra || '') + '<label class="switch"><input type="checkbox" data-set="' + key + '"' + (s[key] ? ' checked' : '') + '><span></span></label></div></div>';
+      }
 
       el.innerHTML =
         '<div class="page-head"><div><h2>설정</h2><div class="sub">비밀값(인증키·토큰)은 시트가 아닌 스크립트 속성에 저장되며 화면에 다시 표시되지 않습니다</div></div>' +
         '<div class="actions"><button class="btn primary" id="save">설정 저장</button></div></div>' +
 
-        '<div class="card"><div class="card-head"><h3>학교 · NEIS</h3></div>' +
-        '<div class="form-grid">' +
-        '<div class="field full"><label>학교</label><div class="inline">' +
+        // ---- 학교 · NEIS ----
+        '<div class="card"><div class="card-head"><h3>학교 · NEIS</h3></div><div class="form-grid">' +
+        '<div class="field full"><label>학교</label><div class="toolbar">' +
         (s['학교명'] ? '<span><b>' + h(s['학교명']) + '</b> <span class="small muted">(' + h(s['시도교육청코드']) + ' / ' + h(s['학교코드']) + ')</span></span>' : '<span class="muted">아직 선택되지 않음</span>') +
         '<button class="btn sm" id="school-search"' + (sec.NEIS_API_KEY ? '' : ' disabled title="NEIS 인증키를 먼저 저장하세요"') + '>학교 검색·변경</button></div></div>' +
-        secretRow('NEIS_API_KEY', 'NEIS 인증키', '<a href="https://open.neis.go.kr" target="_blank" rel="noopener">open.neis.go.kr</a> 회원가입 → 인증키 신청 (즉시 발급). 저장 시 유효성을 확인합니다.') +
+        secretField('NEIS_API_KEY', 'NEIS 인증키', '<a href="https://open.neis.go.kr" target="_blank" rel="noopener">open.neis.go.kr</a> 회원가입 → 인증키 신청 (즉시 발급). 저장 시 유효성을 확인합니다.') +
         '<div class="field"><label>학년도 override</label><input type="text" data-set="학년도override" value="' + h(s['학년도override']) + '" placeholder="비우면 자동 (현재 ' + b.schoolYear + ')"><span class="help">3월 1일 기준 자동 계산. 특별한 경우만 입력</span></div>' +
-        '<div class="field"><label>관리할 끼니</label><div class="inline" style="margin-top:6px">' + b.allMealTypes.map(function (t) { return '<label class="check"><input type="checkbox" data-meal="' + t + '"' + (b.mealTypes.indexOf(t) >= 0 ? ' checked' : '') + '> ' + t + '</label>'; }).join('') + '</div></div>' +
+        '<div class="field"><label>관리할 끼니</label><div class="toolbar" style="height:38px">' + b.allMealTypes.map(function (t) { return '<label class="check"><input type="checkbox" data-meal="' + t + '"' + (b.mealTypes.indexOf(t) >= 0 ? ' checked' : '') + '> ' + t + '</label>'; }).join('') + '</div></div>' +
         '</div></div>' +
 
-        '<div class="card"><div class="card-head"><h3>담당자 알림</h3><span class="small muted">실제 발송 시각은 지정 시각 ±15분 (Apps Script 트리거 특성)</span></div>' +
+        // ---- 담당자 알림 ----
+        '<div class="card"><div class="card-head"><h3>담당자 알림</h3><span class="small muted">실제 발송 시각은 지정 시각 ±15분 (Apps Script 트리거 특성)</span></div><div class="stack">' +
         '<div class="form-grid">' +
         '<div class="field"><label>담당자 이메일 (쉼표로 여러 명)</label><input type="text" data-set="담당자이메일" value="' + h(s['담당자이메일']) + '" placeholder="nutrition@school.kr, teacher@school.kr"></div>' +
-        '<div class="field"><label>담당자 알림 시각</label><input type="time" data-set="담당자알림시간" value="' + h(s['담당자알림시간']) + '"><span class="help">매일 이 시각 ±15분에 오늘 급식 요약 1통. 매주 월요일에는 주간 요약도 함께</span></div>' +
-        '<div class="field full inline">' + sw('담당자일일알림', '일일 요약 (오늘 해당 학생)') + sw('담당자주간알림', '주간 요약 (월요일)') + sw('주말공휴일알림', '급식 없는 날에도 발송') + '</div>' +
-        '<div class="field full inline" style="padding-top:8px;border-top:1px solid var(--border)">' + sw('담임알림', '<b>담임에게도 알림</b> — 담당자 알림 시각에 담임 이메일로 자기 반 해당 학생만 발송 (기본 꺼짐)') +
-        '<span class="small muted">담임 이메일은 <a href="#/students?tab=classes">학생 관리 → 학급/담임</a>에 등록</span></div>' +
-        '</div></div>' +
+        '<div class="field"><label>담당자 알림 시각</label><input type="time" data-set="담당자알림시간" value="' + h(s['담당자알림시간']) + '"><span class="help">매일 이 시각 ±15분에 오늘 급식 요약 1통. 월요일에는 주간 요약도 함께</span></div></div>' +
+        '<div class="toggle-list">' +
+        toggleRow('담당자일일알림', '일일 요약', '오늘 메뉴·해당 학생(담임 포함)·확인 필요 메뉴를 1통으로') +
+        toggleRow('담당자주간알림', '주간 요약', '매주 월요일, 이번 주 날짜별 해당 학생') +
+        toggleRow('주말공휴일알림', '급식 없는 날에도 발송', '주말·방학·공휴일처럼 급식 데이터가 없는 날에도 "데이터 없음" 메일 발송') +
+        '</div></div></div>' +
 
-        '<div class="card"><div class="card-head"><h3>학부모 알림</h3><span class="small muted">전날 저녁 개별 발송 · 학생별 "학부모알림" 값(이메일/문자)을 따름</span></div>' +
-        '<div class="form-grid">' +
-        '<div class="field inline" style="align-self:end">' + sw('학부모알림사용', '<b>학부모 알림 사용</b> (기본 꺼짐)') + '</div>' +
-        '<div class="field"><label>학부모 알림 시각 (전날)</label><input type="time" data-set="학부모알림시간" value="' + h(s['학부모알림시간']) + '"><span class="help">금요일 저녁에는 다음 급식일(월요일) 기준으로 발송</span></div>' +
-        '<div class="field full"><button class="btn" id="parent-preview">내일 학부모 알림 미리보기 (발송 안 함)</button><div id="parent-preview-box" style="margin-top:8px"></div></div>' +
-        '</div></div>' +
+        // ---- 학부모 알림 ----
+        '<div class="card"><div class="card-head"><h3>학부모 알림</h3><span class="small muted">전날 저녁 개별 발송 · 학생별 "학부모알림" 값(이메일/문자)을 따름</span></div><div class="stack">' +
+        '<div class="toggle-list">' + toggleRow('학부모알림사용', '학부모 알림 사용', '기본 꺼짐. 켜면 학부모알림이 "없음"이 아닌 학생에게만 발송') + '</div>' +
+        '<div class="form-grid"><div class="field"><label>학부모 알림 시각 (전날)</label><input type="time" data-set="학부모알림시간" value="' + h(s['학부모알림시간']) + '"><span class="help">금요일 저녁에는 다음 급식일(월요일) 기준으로 발송</span></div>' +
+        '<div class="field"><label>미리보기</label><div><button class="btn" id="parent-preview">내일 학부모 알림 미리보기 (발송 안 함)</button></div></div></div>' +
+        '<div id="parent-preview-box"></div></div></div>' +
 
-        '<div class="card"><div class="card-head"><h3>알림 채널</h3></div>' +
-        '<div class="form-grid">' +
-        '<div class="field full inline">' + sw('채널_이메일', '이메일 (무료, Gmail)') + chanBadge('email') + '<span class="small muted">오늘 남은 발송 한도 ' + b.emailQuota + '통</span></div>' +
-        '<hr class="field full" style="border:0;border-top:1px solid var(--border);margin:4px 0">' +
-        '<div class="field full inline">' + sw('채널_텔레그램', '텔레그램 봇 (무료, 담당자용)') + chanBadge('telegram') + '</div>' +
-        secretRow('TELEGRAM_BOT_TOKEN', '텔레그램 봇 토큰', '텔레그램에서 @BotFather → /newbot 으로 발급. 봇에게 먼저 아무 메시지나 보낸 뒤 아래 "chat id 찾기"') +
-        '<div class="field full"><label>담당자 텔레그램 chat id (쉼표로 여러 개)</label><div class="secret-row"><input type="text" data-set="담당자텔레그램chatid" value="' + h(s['담당자텔레그램chatid']) + '"><button class="btn sm" id="tg-find"' + (sec.TELEGRAM_BOT_TOKEN ? '' : ' disabled') + '>chat id 찾기</button></div><div id="tg-box" class="small" style="margin-top:4px"></div></div>' +
-        '<hr class="field full" style="border:0;border-top:1px solid var(--border);margin:4px 0">' +
-        '<div class="field full inline">' + sw('채널_문자', '문자 (유료, 알리고)') + chanBadge('sms') + '</div>' +
+        // ---- 채널 ----
+        '<div class="card"><div class="card-head"><h3>알림 채널</h3></div><div class="stack">' +
+        '<div class="toggle-list">' +
+        toggleRow('채널_이메일', '이메일', '무료 · Gmail 발송 · 오늘 남은 한도 ' + b.emailQuota + '통', chanBadge('email')) +
+        toggleRow('채널_텔레그램', '텔레그램 봇', '무료 · 담당자용', chanBadge('telegram')) +
+        toggleRow('채널_문자', '문자 (알리고)', '유료 · 학부모 문자 알림에 사용', chanBadge('sms')) +
+        '</div>' +
+        '<div class="section-title">텔레그램</div><div class="form-grid">' +
+        secretField('TELEGRAM_BOT_TOKEN', '텔레그램 봇 토큰', '텔레그램에서 @BotFather → /newbot 으로 발급. 봇에게 먼저 아무 메시지나 보낸 뒤 아래 "chat id 찾기"') +
+        '<div class="field full"><label>담당자 텔레그램 chat id (쉼표로 여러 개)</label><div class="secret-row"><input type="text" data-set="담당자텔레그램chatid" value="' + h(s['담당자텔레그램chatid']) + '"><button class="btn sm" id="tg-find"' + (sec.TELEGRAM_BOT_TOKEN ? '' : ' disabled') + '>chat id 찾기</button></div><div id="tg-box" class="small" style="margin-top:4px"></div></div></div>' +
+        '<div class="section-title">문자 (알리고)</div><div class="form-grid">' +
         '<div class="field"><label>문자 제공자</label><select data-set="문자제공자"><option' + (s['문자제공자'] === '알리고' ? ' selected' : '') + '>알리고</option></select><span class="help">smartsms.aligo.in 가입 → API 키 발급 · 발신번호 사전 등록 필요</span></div>' +
         '<div class="field"><label>발신번호</label><input type="tel" data-set="문자발신번호" value="' + h(s['문자발신번호']) + '" placeholder="등록된 발신번호"></div>' +
-        secretRow('SMS_USER_ID', '알리고 사용자 ID') + secretRow('SMS_API_KEY', '알리고 API 키') +
-        '</div></div>' +
+        secretField('SMS_USER_ID', '알리고 사용자 ID') + secretField('SMS_API_KEY', '알리고 API 키') +
+        '</div></div></div>' +
 
-        '<div class="card"><div class="card-head"><h3>테스트 발송</h3><span class="small muted">담당자 연락처로 실제 발송됩니다 (로그 종류: 테스트)</span></div><div class="inline">' +
+        // ---- 테스트 ----
+        '<div class="card"><div class="card-head"><h3>테스트 발송</h3><span class="small muted">담당자 연락처로 실제 발송됩니다 (로그 종류: 테스트)</span></div><div class="toolbar">' +
         '<button class="btn" data-test="email">이메일 테스트</button><button class="btn" data-test="telegram">텔레그램 테스트</button>' +
-        '<span class="inline"><input type="tel" id="sms-to" placeholder="문자 수신번호" style="width:150px"><button class="btn" data-test="sms">문자 테스트</button></span>' +
-        '<button class="btn" data-notice="daily">오늘 담당자 요약 발송</button><button class="btn" data-notice="weekly">주간 요약 발송</button><button class="btn" data-notice="teacher">오늘 담임 알림 발송</button></div><div id="test-box" style="margin-top:8px"></div></div>' +
+        '<input type="tel" id="sms-to" placeholder="문자 수신번호" style="width:150px"><button class="btn" data-test="sms">문자 테스트</button>' +
+        '<span style="flex-basis:100%;height:0"></span>' +
+        '<button class="btn" data-notice="daily">오늘 담당자 요약 발송</button><button class="btn" data-notice="weekly">주간 요약 발송</button></div><div id="test-box" style="margin-top:10px"></div></div>' +
 
-        '<div class="card"><div class="card-head"><h3>접속 비밀번호</h3></div><div class="form-grid">' +
+        // ---- 비밀번호 ----
+        '<div class="card"><div class="card-head"><h3>접속 비밀번호</h3><span class="small muted">잠금 모드(사용 안 함 / 설정 탭만 / 전체)는 시트 메뉴 [급식 알레르기 → 접속 비밀번호]에서 바꿉니다</span></div><div class="form-grid">' +
         '<div class="field"><label>현재 비밀번호</label><input type="password" id="pw-cur" autocomplete="current-password"></div>' +
         '<div class="field"><label>새 비밀번호 (6자 이상)</label><input type="password" id="pw-new" autocomplete="new-password"></div>' +
-        '<div class="field full"><button class="btn" id="pw-change">비밀번호 변경</button> <span class="small muted">변경하면 다른 기기의 로그인은 모두 해제됩니다. 잊은 경우 시트 메뉴 → 접속 비밀번호 재설정</span></div></div></div>' +
+        '<div class="field full"><div class="toolbar"><button class="btn" id="pw-change">비밀번호 변경</button><span class="small muted">변경하면 다른 기기의 로그인은 모두 해제됩니다</span></div></div></div></div>' +
 
-        '<div class="card"><div class="card-head"><h3>자동 실행(트리거) · 배포</h3></div>' +
+        // ---- 트리거 ----
+        '<div class="card"><div class="card-head"><h3>자동 실행(트리거) · 배포</h3></div><div class="stack">' +
         '<p class="small">등록된 트리거: ' + (b.triggers.length ? b.triggers.map(function (t) { return '<code>' + h(t) + '</code>'; }).join(' ') : '<span class="error-text">없음 — 시트 메뉴에서 초기 설정을 실행하세요</span>') + '</p>' +
-        '<p class="small" style="margin-top:6px">웹앱 URL: ' + (b.webAppUrl ? '<code>' + h(b.webAppUrl) + '</code>' : '<span class="muted">미기록</span>') + '</p>' +
-        '<div class="inline" style="margin-top:10px"><button class="btn" id="triggers-reinstall">트리거 다시 등록</button><span class="small muted">알림 시각을 바꾸면 자동으로 다시 등록됩니다. 다른 계정으로 이관하는 절차는 시트 메뉴의 "이관용 설정 내보내기/가져오기"와 README 참고</span></div></div>';
+        '<p class="small">웹앱 URL: ' + (b.webAppUrl ? '<code>' + h(b.webAppUrl) + '</code>' : '<span class="muted">미기록</span>') + '</p>' +
+        '<div class="toolbar"><button class="btn" id="triggers-reinstall">트리거 다시 등록</button><span class="small muted">알림 시각을 바꾸면 자동으로 다시 등록됩니다. 다른 계정으로 이관하는 절차는 시트 메뉴의 "이관용 설정 내보내기/가져오기"와 README 참고</span></div></div></div>';
 
       // ---- 이벤트 ----
-      var reload = function () { App.invalidate(); return self.renderBody(el); }; // 설정은 모든 화면에 영향
+      var reload = function () { App.invalidate(); return self.renderBody(el); };
       App.$('#save').onclick = function () {
         var btn = this;
         var partial = {};
@@ -109,9 +121,9 @@ App.views.settings = {
         }).then(function () { App.toast('설정을 저장했습니다', 'ok'); reload(); })
           .catch(function (e) { App.toast(e.message, 'danger'); App.busy(btn, false); });
       };
-      el.addEventListener('click', function (e) {
+      App.on(el, 'click', function (e) {
         var b = e.target.closest('button');
-        if (!b) return;
+        if (!b || !el.contains(b)) return;
         if (b.dataset.clear) {
           App.confirm('비밀값 삭제', b.dataset.clear + ' 을(를) 삭제할까요?', '삭제', true).then(function (ok) { if (ok) App.api('apiClearSecret', b.dataset.clear).then(function () { App.toast('삭제했습니다', 'ok'); reload(); }).catch(function (err) { App.toast(err.message, 'danger'); }); });
         }
@@ -170,8 +182,8 @@ App.views.settings = {
 
 App.schoolSearch = function (onDone) {
   var h = App.h;
-  App.modal({
-    title: '학교 검색', body: '<div class="inline"><input type="text" id="ss-q" placeholder="학교명 (예: 대치초)" style="flex:1"><button class="btn primary" id="ss-go">검색</button></div><div id="ss-list" style="margin-top:12px"></div>',
+  var modal = App.modal({
+    title: '학교 검색', body: '<div class="toolbar"><input type="text" id="ss-q" placeholder="학교명 (예: 대치초)" style="flex:1"><button class="btn primary" id="ss-go">검색</button></div><div id="ss-list" style="margin-top:12px"></div>',
     onMount: function (el, api) {
       function search() {
         var q = App.$('#ss-q', el).value.trim();
@@ -192,5 +204,6 @@ App.schoolSearch = function (onDone) {
       App.$('#ss-q', el).focus();
     },
   });
+  if (!modal) App.toast('먼저 열려 있는 창을 닫아 주세요');
 };
 </script>

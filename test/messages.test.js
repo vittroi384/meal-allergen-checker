@@ -5,7 +5,7 @@ const { loadCore } = require('./helpers/loadCore');
 
 const core = loadCore();
 
-const student = core.normalizeStudent({ schoolYear: 2026, grade: 3, classNo: 2, number: 15, name: '홍길동', codes: '6,10', keywords: '', active: true });
+const student = core.normalizeStudent({ schoolYear: 2026, grade: 3, classNo: 2, name: '홍길동', codes: '6,10', keywords: '', active: true });
 const menus = [
   core.normalizeMenu({ date: '2026-09-01', mealType: '중식', name: '쌀밥', codes: '-' }),
   core.normalizeMenu({ date: '2026-09-01', mealType: '중식', name: '돈까스', codes: '1,5,6,10' }),
@@ -22,7 +22,7 @@ test('formatMenuLine', () => {
 test('formatStaffDaily contains menus, affected students, unchecked menus, link', () => {
   const m = core.formatStaffDaily({ date: '2026-09-01', schoolName: '대치초', byType: { '중식': result }, webAppUrl: 'https://x/exec' });
   assert.equal(m.subject, '[대치초] 2026년 9/1(화) 급식 알레르기 안내 — 해당 1명');
-  assert.ok(m.text.includes('3-2-15 홍길동 — 돈까스(밀, 돼지고기)'));
+  assert.ok(m.text.includes('3-2 홍길동 — 돈까스(밀, 돼지고기)'));
   assert.ok(m.text.includes('확인 필요): 배추김치'));
   assert.ok(m.text.includes('https://x/exec'));
   assert.ok(m.html.includes('<table'));

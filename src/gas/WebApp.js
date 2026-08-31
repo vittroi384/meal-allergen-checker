@@ -29,19 +29,16 @@ function include(name) {
 
 function serializeStudent_(s) {
   var out = {
-    _row: s._row || null, schoolYear: s.schoolYear, grade: s.grade, classNo: s.classNo, number: s.number, name: s.name,
+    _row: s._row || null, schoolYear: s.schoolYear, grade: s.grade, classNo: s.classNo, name: s.name,
+    teacherName: s.teacherName || '', teacherPhone: s.teacherPhone || '',
     label: formatStudentLabel(s), codes: s.codes, codeNames: allergenNames(s.codes), keywords: s.keywords, note: s.note,
     parentEmail: s.parentEmail, parentPhone: s.parentPhone, parentNotify: s.parentNotify, active: s.active !== false,
   };
   if (s.teacher !== undefined) {
-    out.teacher = s.teacher ? { name: s.teacher.name, phone: s.teacher.phone, email: s.teacher.email } : null;
+    out.teacher = s.teacher ? { name: s.teacher.name, phone: s.teacher.phone, conflict: !!s.teacher.conflict } : null;
     out.teacherLabel = formatTeacherShort(s.teacher);
   }
   return out;
-}
-
-function serializeClass_(c) {
-  return { _row: c._row || null, schoolYear: c.schoolYear, grade: c.grade, classNo: c.classNo, teacherName: c.teacherName, teacherPhone: c.teacherPhone, teacherEmail: c.teacherEmail };
 }
 
 function serializeMenu_(m) {
@@ -219,13 +216,13 @@ function apiPrintData(token, params) {
         if (p.classNo && Number(p.classNo) !== st.classNo) return;
         var key = st.grade + '-' + st.classNo;
         if (!byClass[key]) byClass[key] = { grade: st.grade, classNo: st.classNo, key: key, teacher: st.teacher || null, teacherLabel: formatTeacherShort(st.teacher), rows: [] };
-        byClass[key].rows.push({ date: date, label: formatKoreanDate(date), mealType: t, student: formatStudentLabel(st), number: st.number,
+        byClass[key].rows.push({ date: date, label: formatKoreanDate(date), mealType: t, student: formatStudentLabel(st),
           name: st.name, text: a.items.map(formatAffectedItem).join(', ') });
       });
     });
   });
   var classes = Object.keys(byClass).map(function (k) { return byClass[k]; })
     .sort(function (a, b) { return (a.grade - b.grade) || (a.classNo - b.classNo); });
-  classes.forEach(function (c) { c.rows.sort(function (a, b) { return a.date.localeCompare(b.date) || (a.number - b.number); }); });
+  classes.forEach(function (c) { c.rows.sort(function (a, b) { return a.date.localeCompare(b.date) || a.name.localeCompare(b.name, 'ko'); }); });
   return { start: start, end: end, schoolName: settings['학교명'] || '', classes: classes };
 }

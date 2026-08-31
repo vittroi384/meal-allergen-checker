@@ -1,11 +1,12 @@
 /**
  * 학생 일괄 업로드 검증 + 병합 계획. 순수 함수.
  * 입력은 tableToObjects 로 만든 원시 객체 배열(문자열 셀), 출력은 행별 상태와 반영 계획.
+ * 학생 식별키 = 학년도+학년+반+이름. 동명이인은 허용하되 경고한다.
  */
 
 var _EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** 전화번호 정규화: 숫자만 남기고 010-1234-5678 형태. 유효하지 않으면 null. 빈값은 ''. */
+/** 휴대폰 번호 정규화: 010-1234-5678. 유효하지 않으면 null. 빈값은 ''. */
 function normalizePhone(v) {
   var s = String(v === undefined || v === null ? '' : v).trim();
   if (s === '') return '';
@@ -20,6 +21,18 @@ function normalizePhone(v) {
   return null;
 }
 
+/** 휴대폰·유선 모두 허용하는 전화 정규화 (담임 전화번호용). 빈값 '' / 유효하지 않으면 null */
+function normalizeAnyPhone(v) {
+  var s = String(v === undefined || v === null ? '' : v).trim();
+  if (s === '') return '';
+  var d = s.replace(/\D/g, '');
+  if (d.length < 8 || d.length > 12) return null;
+  if (d.length === 11) return d.slice(0, 3) + '-' + d.slice(3, 7) + '-' + d.slice(7);
+  if (d.length === 10) return d.slice(0, 2) === '02' ? d.slice(0, 2) + '-' + d.slice(2, 6) + '-' + d.slice(6) : d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6);
+  if (d.length === 9) return d.slice(0, 2) + '-' + d.slice(2, 5) + '-' + d.slice(5);
+  return d;
+}
+
 /** 알레르기코드 셀 검증: 범위 밖 숫자가 있으면 오류. 반환 {codes, invalid:[]} */
 function validateCodesCell(v) {
   var s = String(v === undefined || v === null ? '' : v).trim();
@@ -31,7 +44,7 @@ function validateCodesCell(v) {
 
 function _isPosInt(v) {
   var n = Number(v);
-  return String(v).trim() !== '' && Number.isInteger(n) && n > 0;
+  return String(v === undefined || v === null ? '' : v).trim() !== '' && Number.isInteger(n) && n > 0;
 }
 
 /**
@@ -41,16 +54,18 @@ function _isPosInt(v) {
  */
 function validateStudentRow(raw, schoolYear) {
   var errors = [];
-  var grade = raw.grade, classNo = raw.classNo, number = raw.number;
+  var grade = raw.grade, classNo = raw.classNo;
   if (!_isPosInt(grade) || Number(grade) > 6) errors.push('학년은 1~6 숫자');
   if (!_isPosInt(classNo)) errors.push('반은 1 이상 숫자');
-  if (!_isPosInt(number)) errors.push('번호는 1 이상 숫자');
   var name = String(raw.name || '').trim();
   if (!name) errors.push('이름 없음');
 
   var sy = String(raw.schoolYear === undefined || raw.schoolYear === null ? '' : raw.schoolYear).trim();
   if (sy === '') sy = String(schoolYear);
   if (!/^\d{4}$/.test(sy)) errors.push('학년도는 4자리 숫자');
+
+  var teacherPhone = normalizeAnyPhone(raw.teacherPhone);
+  if (teacherPhone === null) errors.push('담임전화번호 형식 오류');
 
   var cv = validateCodesCell(raw.codes);
   if (cv.invalid.length) errors.push('알레르기코드 범위 밖: ' + cv.invalid.join(','));
@@ -72,8 +87,9 @@ function validateStudentRow(raw, schoolYear) {
     schoolYear: Number(sy),
     grade: Number(grade),
     classNo: Number(classNo),
-    number: Number(number),
     name: name,
+    teacherName: String(raw.teacherName || '').trim(),
+    teacherPhone: teacherPhone || '',
     codes: cv.codes,
     keywords: parseKeywords(raw.keywords),
     note: String(raw.note || '').trim(),
@@ -86,7 +102,7 @@ function validateStudentRow(raw, schoolYear) {
 }
 
 /** 두 학생의 갱신 대상 필드 비교 → 달라진 필드명 배열 */
-var _MERGE_FIELDS = ['codes', 'keywords', 'note', 'parentEmail', 'parentPhone', 'parentNotify', 'active'];
+var _MERGE_FIELDS = ['teacherName', 'teacherPhone', 'codes', 'keywords', 'note', 'parentEmail', 'parentPhone', 'parentNotify', 'active'];
 
 function _diffFields(existing, incoming) {
   return _MERGE_FIELDS.filter(function (f) {
@@ -98,60 +114,75 @@ function _diffFields(existing, incoming) {
 
 /**
  * 업로드 병합 계획.
- * @param rawRows tableToObjects 결과
- * @param existingStudents normalizeStudent 된 기존 학생 (전체 학년도)
- * @param schoolYear 현재 학년도
+ * - 키(학년도|학년|반|이름)가 같은 기존 학생이 있으면 "수정", 없으면 "추가". 삭제 없음.
+ * - 동명이인: 같은 키가 여럿이면 파일 등장 순서 ↔ 시트 행 순서로 짝지어 수정하고, 남는 행은 추가. 모두 경고.
+ * - 같은 반의 담임이름·전화번호가 서로 다르면 경고.
  * @returns {
- *   ok: boolean,               // 오류 0건이면 true
- *   rows: [{ _row, status: '추가'|'수정'|'변경없음'|'오류', student, errors, changedFields, targetRow }],
- *   summary: { add, update, unchanged, error }
+ *   ok: boolean,               // 오류 0건이면 true (경고는 반영을 막지 않음)
+ *   rows: [{ _row, status: '추가'|'수정'|'변경없음'|'오류', student, errors, warnings, changedFields, targetRow }],
+ *   summary: { add, update, unchanged, error, warning }
  * }
  */
 function calcStudentMergePlan(rawRows, existingStudents, schoolYear) {
-  var byKey = {};      // 학년도|학년|반|번호 → 기존 학생
-  existingStudents.forEach(function (s) { byKey[studentKey(s)] = s; });
+  var existingByKey = {};   // key → 기존 학생 배열 (시트 행 순)
+  existingStudents.slice().sort(function (a, b) { return (a._row || 0) - (b._row || 0); })
+    .forEach(function (s) { (existingByKey[studentKey(s)] = existingByKey[studentKey(s)] || []).push(s); });
 
-  var seenInFile = {};
+  var seenCount = {};       // key → 파일 안 등장 횟수
   var rows = rawRows.map(function (raw) {
     var v = validateStudentRow(raw, schoolYear);
     var st = v.student;
     var errors = v.errors.slice();
+    var warnings = [];
     var status = '오류';
     var changedFields = [];
     var targetRow = null;
 
     if (!errors.length) {
       var key = studentKey(st);
-      var ex = byKey[key];
-      if (seenInFile[key]) {
-        errors.push('파일 안에 같은 학년-반-번호가 중복 (' + seenInFile[key] + '행)');
+      var nth = seenCount[key] || 0;
+      seenCount[key] = nth + 1;
+      var candidates = existingByKey[key] || [];
+      var ex = candidates[nth] || null;
+      if (!ex) {
+        status = '추가';
       } else {
-        seenInFile[key] = raw._row;
-      }
-      if (ex && ex.name !== st.name) {
-        errors.push(st.grade + '-' + st.classNo + '-' + st.number + ' 에 이미 다른 학생(' + ex.name +
-          ')이 있습니다. 기존 학생을 비활성화하거나 번호를 확인하세요');
-      }
-      if (!errors.length) {
-        if (!ex) {
-          status = '추가';
-        } else {
-          targetRow = ex._row;
-          changedFields = _diffFields(ex, st);
-          status = changedFields.length ? '수정' : '변경없음';
-        }
+        targetRow = ex._row;
+        changedFields = _diffFields(ex, st);
+        status = changedFields.length ? '수정' : '변경없음';
       }
     }
     if (errors.length) status = '오류';
-    return { _row: raw._row, status: status, student: st, errors: errors, changedFields: changedFields, targetRow: targetRow };
+    return { _row: raw._row, status: status, student: st, errors: errors, warnings: warnings, changedFields: changedFields, targetRow: targetRow };
   });
 
-  var summary = { add: 0, update: 0, unchanged: 0, error: 0 };
+  // 동명이인 경고 (파일 안 중복 + 기존 학생과의 중복 모두)
+  rows.forEach(function (r) {
+    if (r.status === '오류') return;
+    var key = studentKey(r.student);
+    var total = seenCount[key] + Math.max(0, (existingByKey[key] || []).length - seenCount[key]);
+    if (total > 1) r.warnings.push('같은 반에 동명이인(' + r.student.name + ')이 ' + total + '명입니다. 시트에서 비고 등으로 구분하세요');
+  });
+
+  // 담임 불일치 경고: 반영 후 상태(파일 행 + 파일에 없는 기존 활성 학생) 기준
+  var touched = {};
+  rows.forEach(function (r) { if (r.targetRow) touched[r.targetRow] = true; });
+  var after = rows.filter(function (r) { return r.status !== '오류'; }).map(function (r) { return r.student; })
+    .concat(existingStudents.filter(function (s) { return !touched[s._row] && s.active !== false && Number(s.schoolYear) === Number(schoolYear); }));
+  var tmap = buildTeacherMapFromStudents(after);
+  rows.forEach(function (r) {
+    if (r.status === '오류') return;
+    var t = tmap[r.student.grade + '|' + r.student.classNo];
+    if (t && t.conflict) r.warnings.push('같은 반(' + r.student.grade + '-' + r.student.classNo + ')의 담임 정보가 다릅니다: ' + formatTeacherCombos(t.combos));
+  });
+
+  var summary = { add: 0, update: 0, unchanged: 0, error: 0, warning: 0 };
   rows.forEach(function (r) {
     if (r.status === '추가') summary.add++;
     else if (r.status === '수정') summary.update++;
     else if (r.status === '변경없음') summary.unchanged++;
     else summary.error++;
+    if (r.warnings.length) summary.warning++;
   });
   return { ok: summary.error === 0, rows: rows, summary: summary };
 }
@@ -162,8 +193,9 @@ function studentToSheetObject(s) {
     schoolYear: s.schoolYear,
     grade: s.grade,
     classNo: s.classNo,
-    number: s.number,
     name: s.name,
+    teacherName: s.teacherName || '',
+    teacherPhone: s.teacherPhone || '',
     codes: formatAllergyCodes(s.codes),
     keywords: (s.keywords || []).join(','),
     note: s.note || '',
