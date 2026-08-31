@@ -33,7 +33,7 @@ App.views.print = {
       if (!d.classes.length) { body.innerHTML = '<div class="card"><div class="empty">' + App.fmtDate(start) + ' ~ ' + App.fmtDate(end) + ' 기간에 해당 학생이 없습니다</div></div>'; return; }
       body.innerHTML = d.classes.map(function (c) {
         return '<div class="card print-class"><div class="print-title">' + h(d.schoolName) + ' ' + c.grade + '학년 ' + c.classNo + '반 급식 알레르기 주의 학생</div>' +
-          '<div class="print-sub">기간 ' + App.fmtDate(start) + ' ~ ' + App.fmtDate(end) + ' · 총 ' + c.rows.length + '건 · 출력 ' + App.today() + '</div>' +
+          '<div class="print-sub">' + h(c.teacherLabel || '') + ' · 기간 ' + App.fmtDate(start) + ' ~ ' + App.fmtDate(end) + ' · 총 ' + c.rows.length + '건 · 출력 ' + App.today() + '</div>' +
           '<div class="table-wrap"><table><thead><tr><th class="nowrap">날짜</th><th>끼니</th><th class="nowrap">번호</th><th>이름</th><th>못 먹는 메뉴 (원인)</th><th style="width:90px">확인</th></tr></thead><tbody>' +
           c.rows.map(function (x) { return '<tr><td class="nowrap">' + h(x.label) + '</td><td class="nowrap">' + h(x.mealType) + '</td><td class="center">' + x.number + '</td><td class="nowrap"><b>' + h(x.name) + '</b></td><td>' + h(x.text) + '</td><td></td></tr>'; }).join('') +
           '</tbody></table></div></div>';

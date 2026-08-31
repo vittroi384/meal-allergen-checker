@@ -64,16 +64,48 @@ function createSession_() {
   return token;
 }
 
-/** 모든 api* 함수 첫 줄에서 호출. 유효하면 TTL 을 연장한다. */
-function requireSession(token) {
+// ---------- 인증 모드 (시트 메뉴에서만 변경) ----------
+// off      : 비밀번호 없이 누구나 접속 (기본)
+// settings : 설정 탭(설정 API)만 비밀번호
+// on       : 전체 로그인 필요
+
+var AUTH_MODES = ['off', 'settings', 'on'];
+
+function authMode_() {
+  var m = getState('AUTH_MODE');
+  return AUTH_MODES.indexOf(m) >= 0 ? m : 'off';
+}
+
+function setAuthMode_(mode) {
+  if (AUTH_MODES.indexOf(mode) < 0) throw new Error('알 수 없는 인증 모드: ' + mode);
+  setState('AUTH_MODE', mode);
+}
+
+/** 세션 토큰이 유효한지 (모드와 무관하게 순수 검사). 유효하면 TTL 연장 */
+function _hasValidSession(token) {
   var cache = CacheService.getScriptCache();
   var key = 'sess:' + String(token || '');
   var gen = token ? cache.get(key) : null;
-  if (!gen || gen !== _sessionGen()) {
-    throw new Error('AUTH_REQUIRED');
-  }
+  if (!gen || gen !== _sessionGen()) return false;
   cache.put(key, gen, SESSION_TTL_SECONDS);
   return true;
+}
+
+/**
+ * 모든 api* 함수 첫 줄에서 호출.
+ * @param level 'admin' 이면 설정 계열 API (settings 모드에서도 잠김). 생략 시 일반.
+ */
+function requireSession(token, level) {
+  var mode = authMode_();
+  if (mode === 'off') return true;
+  if (mode === 'settings' && level !== 'admin') return true;
+  if (!_hasValidSession(token)) throw new Error('AUTH_REQUIRED');
+  return true;
+}
+
+/** 클라이언트 시작 시 (인증 불필요) */
+function apiAuthInfo() {
+  return { mode: authMode_(), passwordSet: isPasswordSet_() };
 }
 
 function destroySession_(token) {
@@ -107,18 +139,13 @@ function apiLogout(token) {
   return { ok: true };
 }
 
-/** 세션 유효성 확인 (앱 시작 시) */
+/** 세션 토큰 유효성 (모드와 무관). 설정 탭 잠금 해제 여부 판단에 사용 */
 function apiCheckSession(token) {
-  try {
-    requireSession(token);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false };
-  }
+  return { ok: _hasValidSession(token), mode: authMode_() };
 }
 
 function apiChangePassword(token, currentPassword, newPassword) {
-  requireSession(token);
+  requireSession(token, 'admin');
   if (!verifyPassword_(currentPassword)) return { ok: false, error: '현재 비밀번호가 올바르지 않습니다.' };
   setPassword_(newPassword);
   return { ok: true, token: createSession_() };

@@ -4,8 +4,21 @@ App.views.settings = {
   title: '설정',
   skeleton: 'form',
   render: function (el) {
+    var self = this;
+    // "설정 탭만 잠금" 모드: 세션이 없으면 이 탭 안에서만 로그인 패널
+    if (App.state.authMode === 'settings') {
+      return App.apiNoAuth('apiCheckSession', App.state.token).then(function (r) {
+        if (r.ok) return self.renderBody(el);
+        el.innerHTML = '<div class="login-wrap" style="min-height:60vh"><div id="settings-lock" style="width:100%"></div></div>';
+        App.loginPanel(App.$('#settings-lock', el), { title: '🔒 설정 잠금', sub: '설정 탭은 비밀번호가 필요합니다', onSuccess: function () { self.renderBody(el); } });
+      });
+    }
+    return self.renderBody(el);
+  },
+  renderBody: function (el) {
     var h = App.h;
     var self = this;
+    el.innerHTML = App.skeleton('form');
     return App.refreshBoot().then(function (b) {
       var s = b.settings;
       var sec = b.secretStatus;
@@ -38,6 +51,8 @@ App.views.settings = {
         '<div class="field"><label>담당자 이메일 (쉼표로 여러 명)</label><input type="text" data-set="담당자이메일" value="' + h(s['담당자이메일']) + '" placeholder="nutrition@school.kr, teacher@school.kr"></div>' +
         '<div class="field"><label>담당자 알림 시각</label><input type="time" data-set="담당자알림시간" value="' + h(s['담당자알림시간']) + '"><span class="help">매일 이 시각 ±15분에 오늘 급식 요약 1통. 매주 월요일에는 주간 요약도 함께</span></div>' +
         '<div class="field full inline">' + sw('담당자일일알림', '일일 요약 (오늘 해당 학생)') + sw('담당자주간알림', '주간 요약 (월요일)') + sw('주말공휴일알림', '급식 없는 날에도 발송') + '</div>' +
+        '<div class="field full inline" style="padding-top:8px;border-top:1px solid var(--border)">' + sw('담임알림', '<b>담임에게도 알림</b> — 담당자 알림 시각에 담임 이메일로 자기 반 해당 학생만 발송 (기본 꺼짐)') +
+        '<span class="small muted">담임 이메일은 <a href="#/students?tab=classes">학생 관리 → 학급/담임</a>에 등록</span></div>' +
         '</div></div>' +
 
         '<div class="card"><div class="card-head"><h3>학부모 알림</h3><span class="small muted">전날 저녁 개별 발송 · 학생별 "학부모알림" 값(이메일/문자)을 따름</span></div>' +
@@ -64,7 +79,7 @@ App.views.settings = {
         '<div class="card"><div class="card-head"><h3>테스트 발송</h3><span class="small muted">담당자 연락처로 실제 발송됩니다 (로그 종류: 테스트)</span></div><div class="inline">' +
         '<button class="btn" data-test="email">이메일 테스트</button><button class="btn" data-test="telegram">텔레그램 테스트</button>' +
         '<span class="inline"><input type="tel" id="sms-to" placeholder="문자 수신번호" style="width:150px"><button class="btn" data-test="sms">문자 테스트</button></span>' +
-        '<button class="btn" data-notice="daily">오늘 담당자 요약 발송</button><button class="btn" data-notice="weekly">주간 요약 발송</button></div><div id="test-box" style="margin-top:8px"></div></div>' +
+        '<button class="btn" data-notice="daily">오늘 담당자 요약 발송</button><button class="btn" data-notice="weekly">주간 요약 발송</button><button class="btn" data-notice="teacher">오늘 담임 알림 발송</button></div><div id="test-box" style="margin-top:8px"></div></div>' +
 
         '<div class="card"><div class="card-head"><h3>접속 비밀번호</h3></div><div class="form-grid">' +
         '<div class="field"><label>현재 비밀번호</label><input type="password" id="pw-cur" autocomplete="current-password"></div>' +
@@ -77,7 +92,7 @@ App.views.settings = {
         '<div class="inline" style="margin-top:10px"><button class="btn" id="triggers-reinstall">트리거 다시 등록</button><span class="small muted">알림 시각을 바꾸면 자동으로 다시 등록됩니다. 다른 계정으로 이관하는 절차는 시트 메뉴의 "이관용 설정 내보내기/가져오기"와 README 참고</span></div></div>';
 
       // ---- 이벤트 ----
-      var reload = function () { App.invalidate(); return self.render(el); }; // 설정은 모든 화면에 영향
+      var reload = function () { App.invalidate(); return self.renderBody(el); }; // 설정은 모든 화면에 영향
       App.$('#save').onclick = function () {
         var btn = this;
         var partial = {};

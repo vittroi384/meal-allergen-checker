@@ -40,9 +40,12 @@ function triggerMonthlySync() {
   });
 }
 
-/** 매일 담당자알림시간 — 오늘 요약 1통 */
+/** 매일 담당자알림시간 — 오늘 요약 1통 (+ 담임알림이 켜져 있으면 반별 담임 메일) */
 function triggerStaffDaily() {
-  _runGuarded('triggerStaffDaily', function () { runStaffDaily_({}); });
+  _runGuarded('triggerStaffDaily', function () {
+    runStaffDaily_({});
+    try { runTeacherDaily_({}); } catch (e) { logError_('runTeacherDaily_', e); }
+  });
 }
 
 /** 매주 월요일 — 주간 요약 */

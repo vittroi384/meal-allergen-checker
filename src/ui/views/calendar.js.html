@@ -76,7 +76,7 @@ App.views.day = {
         }).join('') + '</div>' : '<div class="empty">메뉴가 없습니다. 동기화하거나 직접 추가하세요.</div>';
         html += '</div><div><div class="small muted" style="margin-bottom:6px;font-weight:700">해당 학생 ' + res.count + '명</div>' +
           (res.affected.length ? '<div class="affected-list">' + res.affected.map(function (a) {
-            return '<div class="affected-item"><div class="who">' + h(a.student.label) + ' <span class="small muted">' + h(a.student.codeNames.join(', ')) + (a.student.keywords.length ? ' / ' + h(a.student.keywords.join(', ')) : '') + '</span></div><div class="why">' + h(a.text) + '</div></div>';
+            return '<div class="affected-item"><div class="who">' + h(a.student.label) + ' <span class="small muted">' + h(a.student.codeNames.join(', ')) + (a.student.keywords.length ? ' / ' + h(a.student.keywords.join(', ')) : '') + '</span></div><div class="why">' + h(a.text) + '</div><div class="small muted">' + h(a.student.teacherLabel || '') + '</div></div>';
           }).join('') + '</div>' : '<div class="empty">' + (res.menus.length ? '해당 학생 없음 🎉' : '') + '</div>') + '</div></div>';
         if (res.uncheckedMenus.length) html += '<div class="notice warn small" style="margin-top:12px"><b>알레르기 표시가 없는 메뉴:</b> ' + h(res.uncheckedMenus.join(', ')) + ' — 실제로 없는지 확인 후 "확인함"을 누르거나 코드를 입력하세요.</div>';
         html += '</div>';

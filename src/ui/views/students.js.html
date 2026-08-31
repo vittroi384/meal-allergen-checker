@@ -1,8 +1,21 @@
 <script>
-/* 학생 관리: 목록/검색/추가/수정/비활성, 일괄 업로드(xlsx·붙여넣기), 양식·명단 다운로드 */
+/* 학생 관리: [학생] 목록/검색/추가/수정/비활성, 일괄 업로드, 양식·명단 다운로드 / [학급·담임] 목록·인라인 수정·업로드 */
 App.views.students = {
   title: '학생 관리',
-  render: function (el) {
+  render: function (el, r) {
+    var self = this;
+    var tab = (r && r.params && r.params.tab) || self._tab || 'students';
+    self._tab = tab;
+    return tab === 'classes' ? self.renderClasses(el) : self.renderStudents(el);
+  },
+  tabsHtml: function (active) {
+    return '<div class="tabs" style="margin-bottom:14px">' +
+      '<a class="' + (active === 'students' ? 'active' : '') + '" href="#/students?tab=students">학생</a>' +
+      '<a class="' + (active === 'classes' ? 'active' : '') + '" href="#/students?tab=classes">학급 / 담임</a></div>';
+  },
+
+  // ---------------- 학생 탭 ----------------
+  renderStudents: function (el) {
     var h = App.h;
     var self = this;
     var filter = self._filter || { q: '', grade: '', classNo: '', activeOnly: true };
@@ -17,33 +30,35 @@ App.views.students = {
         if (filter.classNo && s.classNo !== Number(filter.classNo)) return false;
         if (filter.q) {
           var q = filter.q.replace(/\s+/g, '').toLowerCase();
-          var hay = (s.label + s.codeNames.join('') + s.keywords.join('') + s.note + s.parentEmail + s.parentPhone).replace(/\s+/g, '').toLowerCase();
+          var hay = (s.label + s.codeNames.join('') + s.keywords.join('') + s.note + s.parentEmail + s.parentPhone + (s.teacher ? s.teacher.name : '')).replace(/\s+/g, '').toLowerCase();
           if (hay.indexOf(q) < 0) return false;
         }
         return true;
       });
-      el.innerHTML =
+      el.innerHTML = self.tabsHtml('students') +
         '<div class="page-head"><div><h2>학생 관리</h2><div class="sub">' + data.schoolYear + '학년도 · 전체 ' + all.length + '명 · 표시 ' + list.length + '명</div></div>' +
         '<div class="actions"><button class="btn" id="dl-template">업로드 양식 다운로드</button><button class="btn" id="dl-list">명단 xlsx</button><button class="btn" id="upload">일괄 업로드</button><button class="btn primary" id="add">+ 학생 추가</button></div></div>' +
         '<div class="card"><div class="inline" style="margin-bottom:12px">' +
-        '<input type="text" id="q" placeholder="이름, 학년-반-번호, 알레르기 검색" value="' + h(filter.q) + '" style="width:260px;max-width:100%">' +
+        '<input type="text" id="q" placeholder="이름, 학년-반-번호, 알레르기, 담임 검색" value="' + h(filter.q) + '" style="width:260px;max-width:100%">' +
         '<select id="grade" style="width:auto"><option value="">전체 학년</option>' + Object.keys(grades).sort(function (a, b) { return a - b; }).map(function (g) { return '<option value="' + g + '"' + (String(filter.grade) === g ? ' selected' : '') + '>' + g + '학년</option>'; }).join('') + '</select>' +
         '<select id="class" style="width:auto"><option value="">전체 반</option>' + Object.keys(classes).sort(function (a, b) { return a - b; }).map(function (c) { return '<option value="' + c + '"' + (String(filter.classNo) === c ? ' selected' : '') + '>' + c + '반</option>'; }).join('') + '</select>' +
         '<label class="check"><input type="checkbox" id="active-only"' + (filter.activeOnly ? ' checked' : '') + '> 현재 학년도 사용 중만</label></div>' +
-        '<div class="table-wrap"><table><thead><tr><th class="nowrap">학년-반-번호</th><th>이름</th><th>알레르기</th><th>기타</th><th>학부모알림</th><th>비고</th><th class="center">사용</th><th></th></tr></thead><tbody>' +
+        '<div class="table-wrap"><table><thead><tr><th class="nowrap">학년-반-번호</th><th>이름</th><th>알레르기</th><th>기타</th><th>학부모알림</th><th>담임</th><th>비고</th><th class="center">사용</th><th></th></tr></thead><tbody>' +
         (list.length ? list.map(function (s) {
           return '<tr' + (s.active ? '' : ' style="opacity:.55"') + '><td class="nowrap">' + s.grade + '-' + s.classNo + '-' + s.number + (s.schoolYear && s.schoolYear !== data.schoolYear ? ' <span class="badge gray">' + s.schoolYear + '</span>' : '') + '</td><td><b>' + h(s.name) + '</b></td>' +
             '<td>' + App.codeTags(s.codes) + '</td><td>' + s.keywords.map(function (k) { return '<span class="tag kw">' + h(k) + '</span>'; }).join('') + '</td>' +
             '<td>' + (s.parentNotify === '없음' ? '<span class="muted">없음</span>' : '<span class="badge blue">' + h(s.parentNotify) + '</span> <span class="small muted">' + h(s.parentNotify === '문자' ? s.parentPhone : s.parentEmail) + '</span>') + '</td>' +
+            '<td class="small">' + (s.teacher ? h(s.teacher.name) + (s.teacher.phone ? '<br><span class="muted">' + h(s.teacher.phone) + '</span>' : '') : '<span class="muted">미등록</span>') + '</td>' +
             '<td class="small">' + h(s.note) + '</td><td class="center">' + (s.active ? '<span class="badge ok">사용</span>' : '<span class="badge gray">중지</span>') + '</td>' +
             '<td class="nowrap"><button class="btn sm ghost" data-edit="' + s._row + '">수정</button><button class="btn sm ghost" data-toggle="' + s._row + '" data-active="' + (s.active ? 1 : 0) + '">' + (s.active ? '중지' : '사용') + '</button></td></tr>';
-        }).join('') : '<tr><td colspan="8" class="empty">' + (all.length ? '조건에 맞는 학생이 없습니다' : '등록된 학생이 없습니다. "학생 추가" 또는 "일괄 업로드"로 시작하세요.') + '</td></tr>') +
+        }).join('') : '<tr><td colspan="9" class="empty">' + (all.length ? '조건에 맞는 학생이 없습니다' : '등록된 학생이 없습니다. "학생 추가" 또는 "일괄 업로드"로 시작하세요.') + '</td></tr>') +
         '</tbody></table></div></div>';
 
       var byRow = {};
       all.forEach(function (s) { byRow[s._row] = s; });
-      var reload = function () { App.changed('students'); return self.render(el); };
-      var applyFilter = function () { filter.q = App.$('#q').value; filter.grade = App.$('#grade').value; filter.classNo = App.$('#class').value; filter.activeOnly = App.$('#active-only').checked; reload(); };
+      var reload = function () { App.changed('students'); return self.renderStudents(el); };
+      var refilter = function () { return self.renderStudents(el); };
+      var applyFilter = function () { filter.q = App.$('#q').value; filter.grade = App.$('#grade').value; filter.classNo = App.$('#class').value; filter.activeOnly = App.$('#active-only').checked; refilter(); };
       var qTimer;
       App.$('#q').addEventListener('input', function () { clearTimeout(qTimer); qTimer = setTimeout(applyFilter, 250); });
       App.$('#grade').onchange = function () { filter.classNo = ''; applyFilter(); };
@@ -66,8 +81,68 @@ App.views.students = {
           });
         }
       });
-      // 필터 후 검색창 포커스 유지
       if (document.activeElement === document.body && filter.q) { var q = App.$('#q'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+    });
+  },
+
+  // ---------------- 학급 / 담임 탭 ----------------
+  renderClasses: function (el) {
+    var h = App.h;
+    var self = this;
+    return App.cached('classes', function () { return App.api('apiClasses'); }).then(function (data) {
+      var cur = data.classes.filter(function (c) { return !c.schoolYear || c.schoolYear === data.schoolYear; });
+      var old = data.classes.filter(function (c) { return c.schoolYear && c.schoolYear !== data.schoolYear; });
+      var rowHtml = function (c, isNew) {
+        var id = isNew ? 'new' : c._row;
+        return '<tr data-row="' + id + '"' + (isNew ? ' class="row-add"' : '') + '>' +
+          '<td class="nowrap">' + (isNew ? '<input type="number" data-f="grade" min="1" max="6" placeholder="학년" style="width:64px"> <input type="number" data-f="classNo" min="1" placeholder="반" style="width:64px">' : '<b>' + c.grade + '학년 ' + c.classNo + '반</b><input type="hidden" data-f="grade" value="' + c.grade + '"><input type="hidden" data-f="classNo" value="' + c.classNo + '">') + '</td>' +
+          '<td><input type="text" data-f="teacherName" value="' + h(c.teacherName || '') + '" placeholder="담임 이름"></td>' +
+          '<td><input type="tel" data-f="teacherPhone" value="' + h(c.teacherPhone || '') + '" placeholder="연락처"></td>' +
+          '<td><input type="email" data-f="teacherEmail" value="' + h(c.teacherEmail || '') + '" placeholder="이메일 (담임 알림 수신)"></td>' +
+          '<td class="nowrap"><button class="btn sm primary" data-save="' + id + '"' + (isNew ? '' : ' disabled') + '>' + (isNew ? '추가' : '저장') + '</button><span class="small error-text" data-err="' + id + '" style="display:block"></span></td></tr>';
+      };
+      el.innerHTML = self.tabsHtml('classes') +
+        '<div class="page-head"><div><h2>학급 / 담임</h2><div class="sub">' + data.schoolYear + '학년도 · ' + cur.length + '개 반 등록' + (data.missing.length ? ' · <span class="error-text">담임 미등록 ' + data.missing.length + '개 반</span>' : '') + '</div></div>' +
+        '<div class="actions"><button class="btn" id="dl-ctemplate">업로드 양식 다운로드</button><button class="btn" id="dl-classes">목록 xlsx</button><button class="btn" id="cupload">일괄 업로드</button></div></div>' +
+        (data.missing.length ? '<div class="notice warn" style="margin-bottom:14px">학생은 있지만 담임이 등록되지 않은 반: ' + data.missing.map(function (m) { return '<button class="btn sm" data-quick="' + m.grade + '|' + m.classNo + '">' + m.grade + '-' + m.classNo + '</button>'; }).join(' ') + ' <span class="small">(누르면 아래 입력란에 채워집니다)</span></div>' : '') +
+        '<div class="card"><p class="small muted" style="margin-bottom:10px">칸을 고치고 <b>저장</b>을 누르세요. 담임 이메일이 있고 설정의 "담임에게도 알림"이 켜져 있으면 매일 아침 자기 반 해당 학생을 메일로 받습니다.</p>' +
+        '<div class="table-wrap"><table><thead><tr><th>반</th><th>담임 이름</th><th>연락처</th><th>이메일</th><th></th></tr></thead><tbody>' +
+        cur.map(function (c) { return rowHtml(c, false); }).join('') + rowHtml({}, true) +
+        '</tbody></table></div></div>' +
+        (old.length ? '<div class="card"><div class="card-head"><h3>이전 학년도</h3></div><div class="table-wrap"><table><thead><tr><th>학년도</th><th>반</th><th>담임</th><th>연락처</th><th>이메일</th></tr></thead><tbody>' +
+          old.map(function (c) { return '<tr><td>' + c.schoolYear + '</td><td>' + c.grade + '-' + c.classNo + '</td><td>' + h(c.teacherName) + '</td><td>' + h(c.teacherPhone) + '</td><td>' + h(c.teacherEmail) + '</td></tr>'; }).join('') + '</tbody></table></div></div>' : '');
+
+      var reload = function () { App.changed('classes'); return self.renderClasses(el); };
+      App.$('#dl-ctemplate').onclick = function (e) { App.downloadXlsx('classTemplate', {}, e.currentTarget); };
+      App.$('#dl-classes').onclick = function (e) { App.downloadXlsx('classes', {}, e.currentTarget); };
+      App.$('#cupload').onclick = function () { App.classUpload(reload); };
+      // 입력이 바뀌면 해당 행 저장 버튼 활성화
+      el.addEventListener('input', function (e) {
+        var tr = e.target.closest('tr[data-row]');
+        if (tr && tr.dataset.row !== 'new') App.$('[data-save]', tr).disabled = false;
+      });
+      el.addEventListener('click', function (e) {
+        var b = e.target.closest('button');
+        if (!b) return;
+        if (b.dataset.quick) {
+          var p = b.dataset.quick.split('|');
+          var tr = App.$('tr[data-row="new"]', el);
+          App.$('[data-f="grade"]', tr).value = p[0]; App.$('[data-f="classNo"]', tr).value = p[1]; App.$('[data-f="teacherName"]', tr).focus();
+          tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        if (b.dataset.save) {
+          var row = App.$('tr[data-row="' + b.dataset.save + '"]', el);
+          var payload = { _row: b.dataset.save === 'new' ? null : Number(b.dataset.save), schoolYear: data.schoolYear };
+          App.$$('[data-f]', row).forEach(function (i) { payload[i.dataset.f] = i.value; });
+          var errEl = App.$('[data-err="' + b.dataset.save + '"]', el);
+          errEl.textContent = '';
+          App.busy(b, true);
+          App.api('apiSaveClass', payload).then(function (r) {
+            if (!r.ok) { errEl.textContent = r.errors.join(', '); App.busy(b, false); return; }
+            App.toast(r.status === '변경없음' ? '변경된 내용이 없습니다' : '저장했습니다', 'ok'); reload();
+          }).catch(function (err) { errEl.textContent = err.message; App.busy(b, false); });
+        }
+      });
     });
   },
 };
@@ -112,25 +187,27 @@ App.studentEditor = function (s, schoolYear, onSaved) {
   });
 };
 
-/** 일괄 업로드 모달: 파일/붙여넣기 → 미리보기 → 반영 */
-App.studentUpload = function (onDone) {
+/**
+ * 공통 업로드 모달 (파일/붙여넣기 → 미리보기 → 반영).
+ * cfg = { title, note, previewApi, applyApi, columns(row) → td html 배열, headers[], pasteHint, onDone }
+ */
+App.uploadModal = function (cfg) {
   var h = App.h;
+  var rawRows = null, plan = null;
   var body =
     '<div class="tabs"><button class="active" data-tab="file">xlsx 파일</button><button data-tab="paste">엑셀에서 붙여넣기</button></div>' +
-    '<div id="tab-file"><label class="dropzone" id="dz"><input type="file" id="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><div>📄 여기를 눌러 .xlsx 파일을 선택하거나 끌어다 놓으세요</div><div class="small" style="margin-top:4px">첫 번째 시트를 읽습니다. 헤더는 학생 시트와 같게 (업로드 양식 다운로드 참고)</div></label><div id="file-name" class="small muted" style="margin-top:6px"></div></div>' +
-    '<div id="tab-paste" hidden><textarea id="paste" placeholder="엑셀에서 헤더 포함 범위를 복사한 뒤 여기에 붙여넣기 (Ctrl+V)"></textarea><div class="small muted">헤더가 없으면 학생 시트 열 순서(학년도, 학년, 반, 번호, 이름, 알레르기코드, 기타알레르기, 비고, 학부모이메일, 학부모연락처, 학부모알림, 사용여부)로 간주합니다</div></div>' +
+    '<div id="tab-file"><label class="dropzone" id="dz"><input type="file" id="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><div>📄 여기를 눌러 .xlsx 파일을 선택하거나 끌어다 놓으세요</div><div class="small" style="margin-top:4px">첫 번째 시트를 읽습니다. 헤더는 양식과 같게 (양식 다운로드 참고)</div></label><div id="file-name" class="small muted" style="margin-top:6px"></div></div>' +
+    '<div id="tab-paste" hidden><textarea id="paste" placeholder="엑셀에서 헤더 포함 범위를 복사한 뒤 여기에 붙여넣기 (Ctrl+V)"></textarea><div class="small muted">' + h(cfg.pasteHint || '') + '</div></div>' +
     '<div id="preview" style="margin-top:14px"></div><div id="up-err" class="error-text" style="margin-top:8px"></div>';
-  var rawRows = null, plan = null;
   App.modal({
-    title: '학생 일괄 업로드', body: body, wide: true,
-    footer: '<span class="left small muted">기존 학생과 학년·반·번호·이름이 같으면 수정, 아니면 추가. 삭제는 하지 않습니다.</span><button class="btn" data-close>닫기</button><button class="btn" id="up-preview">미리보기</button><button class="btn primary" id="up-apply" disabled>반영</button>',
+    title: cfg.title, body: body, wide: true,
+    footer: '<span class="left small muted">' + h(cfg.note || '') + '</span><button class="btn" data-close>닫기</button><button class="btn" id="up-preview">미리보기</button><button class="btn primary" id="up-apply" disabled>반영</button>',
     onMount: function (el, api) {
-      var mode = 'file';
+      var mode = 'file', pickedFile = null;
       App.$$('.tabs button', el).forEach(function (b) {
         b.onclick = function () { App.$$('.tabs button', el).forEach(function (x) { x.classList.toggle('active', x === b); }); mode = b.dataset.tab; App.$('#tab-file', el).hidden = mode !== 'file'; App.$('#tab-paste', el).hidden = mode !== 'paste'; };
       });
       var fileInput = App.$('#file', el), dz = App.$('#dz', el);
-      var pickedFile = null;
       fileInput.onchange = function () { pickedFile = fileInput.files[0]; App.$('#file-name', el).textContent = pickedFile ? pickedFile.name + ' (' + Math.round(pickedFile.size / 1024) + ' KB)' : ''; };
       ['dragenter', 'dragover'].forEach(function (ev) { dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.add('over'); }); });
       ['dragleave', 'drop'].forEach(function (ev) { dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.remove('over'); }); });
@@ -145,21 +222,18 @@ App.studentUpload = function (onDone) {
           box.innerHTML = '<div class="inline" style="margin-bottom:8px"><span class="badge ok">추가 ' + s.add + '</span><span class="badge blue">수정 ' + s.update + '</span><span class="badge gray">변경 없음 ' + s.unchanged + '</span><span class="badge danger">오류 ' + s.error + '</span>' +
             (s.error ? '<label class="check" style="margin-left:auto"><input type="checkbox" id="err-only"' + (errOnly ? ' checked' : '') + '> 오류 행만</label>' : '') + '</div>' +
             (s.error ? '<div class="notice danger small" style="margin-bottom:8px">오류가 있는 행이 있어 반영할 수 없습니다. 원본을 고쳐 다시 미리보기 하세요.</div>' : '<div class="notice ok small" style="margin-bottom:8px">오류 없음 — "반영"을 누르면 저장됩니다.</div>') +
-            '<div class="table-wrap" style="max-height:380px;overflow:auto"><table><thead><tr><th>행</th><th>상태</th><th class="nowrap">학년-반-번호</th><th>이름</th><th>알레르기</th><th>기타</th><th>학부모알림</th><th>내용</th></tr></thead><tbody>' +
+            '<div class="table-wrap" style="max-height:380px;overflow:auto"><table><thead><tr><th>행</th><th>상태</th>' + cfg.headers.map(function (x) { return '<th>' + h(x) + '</th>'; }).join('') + '<th>내용</th></tr></thead><tbody>' +
             rows.map(function (r) {
-              var st = r.student;
               var cls = r.status === '오류' ? 'row-error' : r.status === '추가' ? 'row-add' : r.status === '수정' ? 'row-update' : '';
               var badge = r.status === '오류' ? 'danger' : r.status === '추가' ? 'ok' : r.status === '수정' ? 'blue' : 'gray';
-              var detail = r.status === '오류' ? '<span class="error-text">' + h(r.errors.join('; ')) + '</span>' : r.status === '수정' ? '<span class="small muted">변경: ' + h(r.changedFields.map(fieldLabel).join(', ')) + '</span>' : '';
-              return '<tr class="' + cls + '"><td>' + r._row + '</td><td><span class="badge ' + badge + '">' + r.status + '</span></td><td class="nowrap">' + (st.grade || '?') + '-' + (st.classNo || '?') + '-' + (st.number || '?') + '</td><td>' + h(st.name) + '</td><td>' + App.codeTags(st.codes) + '</td><td class="small">' + h(st.keywords.join(', ')) + '</td><td class="small">' + h(st.parentNotify) + '</td><td>' + detail + '</td></tr>';
+              var detail = r.status === '오류' ? '<span class="error-text">' + h(r.errors.join('; ')) + '</span>' : r.status === '수정' ? '<span class="small muted">변경: ' + h(r.changedFields.map(cfg.fieldLabel || function (f) { return f; }).join(', ')) + '</span>' : '';
+              return '<tr class="' + cls + '"><td>' + r._row + '</td><td><span class="badge ' + badge + '">' + r.status + '</span></td>' + cfg.columns(r).map(function (c) { return '<td>' + c + '</td>'; }).join('') + '<td>' + detail + '</td></tr>';
             }).join('') + '</tbody></table></div>';
           var eo = App.$('#err-only', el); if (eo) eo.onchange = function () { errOnly = eo.checked; draw(); };
         }
         draw();
         App.$('#up-apply', el).disabled = !plan.ok;
       }
-      function fieldLabel(f) { return { codes: '알레르기코드', keywords: '기타알레르기', note: '비고', parentEmail: '학부모이메일', parentPhone: '학부모연락처', parentNotify: '학부모알림', active: '사용여부' }[f] || f; }
-
       App.$('#up-preview', el).onclick = function () {
         var btn = this; App.$('#up-err', el).textContent = ''; App.$('#up-apply', el).disabled = true;
         var input;
@@ -173,22 +247,50 @@ App.studentUpload = function (onDone) {
           input = Promise.resolve({ tsv: text });
         }
         App.busy(btn, true);
-        input.then(function (inp) { return App.api('apiPreviewStudentUpload', inp); }).then(function (r) { rawRows = r.rawRows; plan = r.plan; renderPreview(); })
+        input.then(function (inp) { return App.api(cfg.previewApi, inp); }).then(function (r) { rawRows = r.rawRows; plan = r.plan; renderPreview(); })
           .catch(function (e) { App.$('#up-err', el).textContent = e.message; }).then(function () { App.busy(btn, false); });
       };
       App.$('#up-apply', el).onclick = function () {
         var btn = this;
         if (!plan || !plan.ok) return;
-        App.confirm('학생 반영', '추가 ' + plan.summary.add + '명, 수정 ' + plan.summary.update + '명을 반영할까요?', '반영').then(function (ok) {
+        App.confirm('반영', '추가 ' + plan.summary.add + '건, 수정 ' + plan.summary.update + '건을 반영할까요?', '반영').then(function (ok) {
           if (!ok) return;
           App.busy(btn, true);
-          App.api('apiApplyStudentUpload', rawRows).then(function (r) {
+          App.api(cfg.applyApi, rawRows).then(function (r) {
             if (!r.ok) { App.$('#up-err', el).textContent = r.error; if (r.plan) { plan = r.plan; renderPreview(); } App.busy(btn, false); return; }
-            App.toast('반영 완료: 추가 ' + r.added + ', 수정 ' + r.updated, 'ok'); api.close(); if (onDone) onDone();
+            App.toast('반영 완료: 추가 ' + r.added + ', 수정 ' + r.updated, 'ok'); api.close(); if (cfg.onDone) cfg.onDone();
           }).catch(function (e) { App.$('#up-err', el).textContent = e.message; App.busy(btn, false); });
         });
       };
     },
+  });
+};
+
+App.studentUpload = function (onDone) {
+  var h = App.h;
+  App.uploadModal({
+    title: '학생 일괄 업로드',
+    note: '기존 학생과 학년·반·번호·이름이 같으면 수정, 아니면 추가. 삭제는 하지 않습니다.',
+    pasteHint: '헤더가 없으면 학생 시트 열 순서(학년도, 학년, 반, 번호, 이름, 알레르기코드, 기타알레르기, 비고, 학부모이메일, 학부모연락처, 학부모알림, 사용여부)로 간주합니다',
+    previewApi: 'apiPreviewStudentUpload', applyApi: 'apiApplyStudentUpload',
+    headers: ['학년-반-번호', '이름', '알레르기', '기타', '학부모알림'],
+    columns: function (r) { var st = r.student; return [(st.grade || '?') + '-' + (st.classNo || '?') + '-' + (st.number || '?'), h(st.name), App.codeTags(st.codes), h(st.keywords.join(', ')), h(st.parentNotify)]; },
+    fieldLabel: function (f) { return { codes: '알레르기코드', keywords: '기타알레르기', note: '비고', parentEmail: '학부모이메일', parentPhone: '학부모연락처', parentNotify: '학부모알림', active: '사용여부' }[f] || f; },
+    onDone: onDone,
+  });
+};
+
+App.classUpload = function (onDone) {
+  var h = App.h;
+  App.uploadModal({
+    title: '학급 / 담임 일괄 업로드',
+    note: '학년도·학년·반이 같은 행은 수정, 없으면 추가. 삭제는 하지 않습니다.',
+    pasteHint: '헤더가 없으면 학급 시트 열 순서(학년도, 학년, 반, 담임이름, 담임연락처, 담임이메일)로 간주합니다',
+    previewApi: 'apiPreviewClassUpload', applyApi: 'apiApplyClassUpload',
+    headers: ['반', '담임', '연락처', '이메일'],
+    columns: function (r) { var c = r.cls; return [(c.grade || '?') + '-' + (c.classNo || '?'), h(c.teacherName), h(c.teacherPhone), h(c.teacherEmail)]; },
+    fieldLabel: function (f) { return { teacherName: '담임이름', teacherPhone: '담임연락처', teacherEmail: '담임이메일' }[f] || f; },
+    onDone: onDone,
   });
 };
 </script>

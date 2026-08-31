@@ -28,11 +28,20 @@ function include(name) {
 // ---------- 직렬화 (google.script.run 은 plain 객체만) ----------
 
 function serializeStudent_(s) {
-  return {
+  var out = {
     _row: s._row || null, schoolYear: s.schoolYear, grade: s.grade, classNo: s.classNo, number: s.number, name: s.name,
     label: formatStudentLabel(s), codes: s.codes, codeNames: allergenNames(s.codes), keywords: s.keywords, note: s.note,
     parentEmail: s.parentEmail, parentPhone: s.parentPhone, parentNotify: s.parentNotify, active: s.active !== false,
   };
+  if (s.teacher !== undefined) {
+    out.teacher = s.teacher ? { name: s.teacher.name, phone: s.teacher.phone, email: s.teacher.email } : null;
+    out.teacherLabel = formatTeacherShort(s.teacher);
+  }
+  return out;
+}
+
+function serializeClass_(c) {
+  return { _row: c._row || null, schoolYear: c.schoolYear, grade: c.grade, classNo: c.classNo, teacherName: c.teacherName, teacherPhone: c.teacherPhone, teacherEmail: c.teacherEmail };
 }
 
 function serializeMenu_(m) {
@@ -209,7 +218,7 @@ function apiPrintData(token, params) {
         if (p.grade && Number(p.grade) !== st.grade) return;
         if (p.classNo && Number(p.classNo) !== st.classNo) return;
         var key = st.grade + '-' + st.classNo;
-        if (!byClass[key]) byClass[key] = { grade: st.grade, classNo: st.classNo, key: key, rows: [] };
+        if (!byClass[key]) byClass[key] = { grade: st.grade, classNo: st.classNo, key: key, teacher: st.teacher || null, teacherLabel: formatTeacherShort(st.teacher), rows: [] };
         byClass[key].rows.push({ date: date, label: formatKoreanDate(date), mealType: t, student: formatStudentLabel(st), number: st.number,
           name: st.name, text: a.items.map(formatAffectedItem).join(', ') });
       });

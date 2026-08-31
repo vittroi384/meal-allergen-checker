@@ -13,6 +13,8 @@ var COLUMN_WIDTHS = Object.freeze({
   // 학생 / 템플릿
   '학년도': 70, '학년': 55, '반': 55, '번호': 60, '이름': 100, '알레르기코드': 140, '기타알레르기': 170, '비고': 280,
   '학부모이메일': 230, '학부모연락처': 140, '학부모알림': 95, '사용여부': 80,
+  // 학급
+  '담임이름': 110, '담임연락처': 150, '담임이메일': 240,
   // 급식
   '날짜': 110, '식사구분': 85, '메뉴명': 240, '출처': 75, '수동수정여부': 110, '원본문자열': 300,
   // 알림로그
@@ -22,7 +24,7 @@ var COLUMN_WIDTHS = Object.freeze({
 });
 
 /** 텍스트(@) 서식으로 고정할 열 — 날짜/시각/번호가 자동 변환되지 않도록 */
-var TEXT_FORMAT_HEADERS = Object.freeze(['날짜', '대상일', '발송시각', '알레르기코드', '학부모연락처', '중복키', '값']);
+var TEXT_FORMAT_HEADERS = Object.freeze(['날짜', '대상일', '발송시각', '알레르기코드', '학부모연락처', '담임연락처', '중복키', '값']);
 
 /** 줄바꿈(WRAP) 할 긴 텍스트 열. 나머지 긴 텍스트는 CLIP + 넓은 너비 */
 var WRAP_HEADERS = Object.freeze(['비고', '설명', '기타알레르기']);
@@ -39,7 +41,7 @@ var HEADER_PROTECTION_DESC = '헤더 행은 수정하지 마세요';
 /** 모든 시트에 서식 적용. 반환: 처리한 시트 수 */
 function applyAllFormatting_() {
   var ss = getSpreadsheet_();
-  var names = [SHEETS.STUDENTS, SHEETS.MEALS, SHEETS.SETTINGS, SHEETS.LOGS, SHEETS.TEMPLATE];
+  var names = [SHEETS.STUDENTS, SHEETS.CLASSES, SHEETS.MEALS, SHEETS.SETTINGS, SHEETS.LOGS, SHEETS.TEMPLATE];
   var n = 0;
   names.forEach(function (name) {
     var sheet = ss.getSheetByName(name);

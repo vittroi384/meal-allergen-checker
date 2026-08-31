@@ -5,8 +5,17 @@
 var MENU_TITLE = '급식 알레르기';
 
 function onOpen() {
-  SpreadsheetApp.getUi()
-    .createMenu(MENU_TITLE)
+  var ui = SpreadsheetApp.getUi();
+  var mode = 'off';
+  try { mode = authMode_(); } catch (e) { /* 권한 승인 전 */ }
+  var mark = function (m) { return mode === m ? '● ' : '○ '; };
+  var authMenu = ui.createMenu('접속 비밀번호')
+    .addItem(mark('off') + '사용 안 함 — 링크만 있으면 접속 (기본)', 'menuAuthOff')
+    .addItem(mark('settings') + '설정 탭만 잠금', 'menuAuthSettings')
+    .addItem(mark('on') + '전체 잠금 — 로그인 필요', 'menuAuthOn')
+    .addSeparator()
+    .addItem('비밀번호 재설정', 'menuResetPassword');
+  ui.createMenu(MENU_TITLE)
     .addItem('초기 설정 (처음 한 번 / 설정 변경 후)', 'setup')
     .addItem('웹앱 열기', 'menuOpenWebApp')
     .addItem('서식 다시 적용', 'menuReapplyFormatting')
@@ -18,7 +27,7 @@ function onOpen() {
     .addItem('오늘 담당자 알림 테스트 발송', 'menuTestDailyNotice')
     .addItem('템플릿 → 학생 반영', 'menuApplyTemplate')
     .addSeparator()
-    .addItem('접속 비밀번호 재설정', 'menuResetPassword')
+    .addSubMenu(authMenu)
     .addItem('이관용 설정 내보내기', 'menuExportMigration')
     .addItem('이관용 설정 가져오기', 'menuImportMigration')
     .addItem('이 계정의 트리거 모두 해제', 'menuRemoveAllTriggers')
@@ -29,7 +38,7 @@ function onOpen() {
 function onEdit(e) {
   try {
     var name = e && e.range ? e.range.getSheet().getName() : '';
-    if ([SHEETS.STUDENTS, SHEETS.MEALS, SHEETS.SETTINGS].indexOf(name) >= 0) bumpDataVersion_();
+    if ([SHEETS.STUDENTS, SHEETS.CLASSES, SHEETS.MEALS, SHEETS.SETTINGS].indexOf(name) >= 0) bumpDataVersion_();
   } catch (err) { /* 무시 */ }
 }
 
@@ -65,6 +74,7 @@ function setup() {
   } else {
     msg += '\n\n접속 비밀번호는 기존 값이 유지됩니다.';
   }
+  msg += '\n\n접속 비밀번호 모드: ' + _AUTH_MODE_LABEL[authMode_()] + ' (메뉴 → 접속 비밀번호 에서 변경)';
   msg += '\n\n다음 단계: 확장 프로그램 → Apps Script → 배포 → 새 배포(웹앱)로 URL 을 만든 뒤, 웹앱 설정 화면에서 NEIS 인증키와 학교를 등록하세요.';
   _alert('초기 설정 완료', msg);
   return msg;
@@ -96,6 +106,10 @@ function ensureAllSheets_() {
   var st = ensureSheet_(SHEETS.STUDENTS, HEADERS.STUDENTS);
   _applyStudentValidations(st);
 
+  // 학급 (담임)
+  var cl = ensureSheet_(SHEETS.CLASSES, HEADERS.CLASSES);
+  _applyClassValidations(cl);
+
   // 급식
   var ml = ensureSheet_(SHEETS.MEALS, HEADERS.MEALS);
   _applyMealValidations(ml);
@@ -122,7 +136,7 @@ function ensureAllSheets_() {
   applyAllFormatting_();
 
   // 시트 순서
-  var order = [SHEETS.STUDENTS, SHEETS.MEALS, SHEETS.SETTINGS, SHEETS.LOGS, SHEETS.TEMPLATE];
+  var order = [SHEETS.STUDENTS, SHEETS.CLASSES, SHEETS.MEALS, SHEETS.SETTINGS, SHEETS.LOGS, SHEETS.TEMPLATE];
   order.forEach(function (name, i) {
     var s = ss.getSheetByName(name);
     if (s) { ss.setActiveSheet(s); ss.moveActiveSheet(i + 1); }
@@ -156,6 +170,16 @@ function _applyStudentValidations(sheet) {
   if ((r = _bodyRange(sheet, '학부모연락처'))) r.setNumberFormat('@');
   if ((r = _bodyRange(sheet, '학부모알림'))) r.setDataValidation(dv().requireValueInList(PARENT_NOTIFY_VALUES, true).setAllowInvalid(false).build());
   if ((r = _bodyRange(sheet, '사용여부'))) r.setDataValidation(dv().requireCheckbox().build());
+}
+
+function _applyClassValidations(sheet) {
+  var dv = SpreadsheetApp.newDataValidation;
+  var r;
+  if ((r = _bodyRange(sheet, '학년'))) r.setDataValidation(dv().requireNumberBetween(1, 6).setAllowInvalid(false).setHelpText('1~6 숫자').build());
+  if ((r = _bodyRange(sheet, '반'))) r.setDataValidation(dv().requireNumberGreaterThanOrEqualTo(1).setAllowInvalid(false).build());
+  if ((r = _bodyRange(sheet, '학년도'))) r.setDataValidation(dv().requireNumberBetween(2000, 2100).setAllowInvalid(true).setHelpText('예: 2026 (비우면 현재 학년도)').build());
+  if ((r = _bodyRange(sheet, '담임연락처'))) r.setNumberFormat('@');
+  sheet.getRange(1, 1).setNote('학년도·학년·반 별 담임 정보. 웹앱 [학생 관리 → 학급/담임] 에서 편집하거나 엑셀에서 붙여넣을 수 있습니다.\n담임이메일이 있고 설정의 "담임알림" 이 켜져 있으면 매일 아침 자기 반 해당 학생을 메일로 받습니다.');
 }
 
 function _applyMealValidations(sheet) {
@@ -267,6 +291,31 @@ function menuOpenWebApp() {
     '<p style="color:#6b7280;font-size:12px">이 링크를 학교 담당자에게 공유하면 됩니다 (비밀번호 필요).</p></div>'
   ).setWidth(520).setHeight(160);
   SpreadsheetApp.getUi().showModalDialog(html, '웹앱 열기');
+}
+
+function menuAuthOff() { _setAuthModeFromMenu('off'); }
+function menuAuthSettings() { _setAuthModeFromMenu('settings'); }
+function menuAuthOn() { _setAuthModeFromMenu('on'); }
+
+var _AUTH_MODE_LABEL = { off: '사용 안 함 (링크만 있으면 누구나 접속)', settings: '설정 탭만 잠금', on: '전체 잠금 (로그인 필요)' };
+
+function _setAuthModeFromMenu(mode) {
+  var msg = '접속 비밀번호 모드: ' + _AUTH_MODE_LABEL[mode] + '\n\n';
+  if (mode === 'off') {
+    msg += '웹앱 URL 을 아는 사람은 누구나 모든 화면을 볼 수 있습니다. 학생 정보가 있으므로 URL 공유에 주의하세요.';
+  } else if (mode === 'settings') {
+    msg += '대시보드·달력·학생·급식·인쇄·로그는 자유롭게 보고, 설정 탭(NEIS 키·알림·비밀값 변경)만 비밀번호가 필요합니다.';
+  } else {
+    msg += '모든 화면에 로그인이 필요합니다.';
+  }
+  setAuthMode_(mode);
+  if (mode !== 'off' && !isPasswordSet_()) {
+    var pw = generatePassword_(10);
+    setPassword_(pw);
+    msg += '\n\n★ 비밀번호가 없어 새로 만들었습니다 (이 창에서만 1회 표시):\n\n    ' + pw;
+  }
+  msg += '\n\n웹앱은 새로고침하면 바로 적용됩니다 (재배포 불필요).';
+  _alert('접속 비밀번호 설정', msg);
 }
 
 function menuResetPassword() {

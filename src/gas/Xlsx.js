@@ -79,6 +79,8 @@ function apiDownloadXlsx(token, kind, params) {
   switch (kind) {
     case 'students': spec = buildStudentsExport_(p, settings); label = '학생명단_' + school; break;
     case 'template': spec = buildTemplateExport_(); label = '학생_업로드양식'; break;
+    case 'classes': spec = buildClassesExport_(); label = '학급담임_' + school; break;
+    case 'classTemplate': spec = buildClassTemplateExport_(); label = '학급담임_업로드양식'; break;
     case 'day':
       if (!isValidDateStr(p.date)) throw new Error('날짜 오류');
       spec = buildResultExport_(p.date, p.date, settings); label = '알레르기해당_' + school + '_' + p.date; break;
@@ -142,6 +144,27 @@ function buildTemplateExport_() {
   ];
 }
 
+var _CLASS_WIDTHS = [70, 55, 55, 110, 150, 240];
+
+function buildClassesExport_() {
+  var rows = readClasses_().slice().sort(function (a, b) { return ((a.schoolYear || 0) - (b.schoolYear || 0)) || (a.grade - b.grade) || (a.classNo - b.classNo); })
+    .map(function (c) { var o = classToSheetObject(c); return HEADERS.CLASSES.map(function (h) { return o[FIELD_MAP.CLASSES[h]]; }); });
+  return [{ name: '학급', headers: HEADERS.CLASSES.slice(), rows: rows, widths: _CLASS_WIDTHS }];
+}
+
+function buildClassTemplateExport_() {
+  return [
+    { name: '학급', headers: HEADERS.CLASSES.slice(), rows: [], widths: _CLASS_WIDTHS },
+    { name: '작성안내', headers: ['항목', '설명'], widths: [140, 600], rows: [
+      ['필수 열', '학년, 반, 담임이름'],
+      ['학년도', '비우면 업로드 시점의 현재 학년도'],
+      ['담임연락처', '휴대폰 또는 학교 유선번호 (하이픈 무관)'],
+      ['담임이메일', '"담임알림" 을 켜면 이 주소로 매일 아침 자기 반 해당 학생이 발송됩니다'],
+      ['병합 규칙', '학년도·학년·반이 같은 행은 수정, 없으면 추가. 삭제는 하지 않습니다'],
+    ] },
+  ];
+}
+
 function buildResultExport_(start, end, settings) {
   var mealTypes = managedMealTypes_(settings);
   var students = readActiveStudents_(settings);
@@ -156,13 +179,14 @@ function buildResultExport_(start, end, settings) {
       r.affected.forEach(function (a) {
         var s = a.student;
         rows.push([date, formatKoreanDate(date), t, s.grade, s.classNo, s.number, s.name, a.items.map(formatAffectedItem).join(', '),
+          s.teacher ? s.teacher.name : '담임 미등록', s.teacher ? s.teacher.phone : '',
           formatAllergyCodes(s.codes), s.keywords.join(','), s.parentNotify]);
       });
     });
   });
   return [
-    { name: '해당학생', headers: ['날짜', '요일', '끼니', '학년', '반', '번호', '이름', '문제 메뉴(원인)', '학생 알레르기코드', '기타알레르기', '학부모알림'],
-      rows: rows, widths: [100, 70, 60, 50, 50, 50, 90, 400, 120, 120, 90] },
+    { name: '해당학생', headers: ['날짜', '요일', '끼니', '학년', '반', '번호', '이름', '문제 메뉴(원인)', '담임', '담임연락처', '학생 알레르기코드', '기타알레르기', '학부모알림'],
+      rows: rows, widths: [100, 70, 60, 50, 50, 50, 90, 400, 100, 140, 120, 120, 90] },
     { name: '메뉴', headers: ['날짜', '끼니', '메뉴명', '알레르기코드', '알레르기명', '비고'], rows: menuRows, widths: [100, 60, 240, 110, 260, 90] },
   ];
 }
@@ -173,9 +197,9 @@ function buildClassPrintExport_(p, settings) {
   var sheets = data.classes.map(function (c) {
     return {
       name: c.grade + '-' + c.classNo,
-      headers: ['날짜', '요일', '끼니', '번호', '이름', '못 먹는 메뉴(원인)'],
-      rows: c.rows.map(function (r) { return [r.date, r.label, r.mealType, r.number, r.name, r.text]; }),
-      widths: [100, 70, 60, 50, 90, 420],
+      headers: ['날짜', '요일', '끼니', '번호', '이름', '못 먹는 메뉴(원인)', '담임'],
+      rows: c.rows.map(function (r) { return [r.date, r.label, r.mealType, r.number, r.name, r.text, c.teacherLabel]; }),
+      widths: [100, 70, 60, 50, 90, 420, 200],
     };
   });
   if (!sheets.length) sheets.push({ name: '해당없음', headers: ['안내'], rows: [['해당 기간에 해당 학생이 없습니다']] });
@@ -195,7 +219,7 @@ function apiPrintDataInternal_(p, settings) {
         if (p.grade && Number(p.grade) !== st.grade) return;
         if (p.classNo && Number(p.classNo) !== st.classNo) return;
         var key = st.grade + '-' + st.classNo;
-        if (!byClass[key]) byClass[key] = { grade: st.grade, classNo: st.classNo, key: key, rows: [] };
+        if (!byClass[key]) byClass[key] = { grade: st.grade, classNo: st.classNo, key: key, teacherLabel: formatTeacherShort(st.teacher), rows: [] };
         byClass[key].rows.push({ date: date, label: formatKoreanDate(date), mealType: t, number: st.number, name: st.name, text: a.items.map(formatAffectedItem).join(', ') });
       });
     });

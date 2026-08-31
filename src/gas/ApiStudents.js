@@ -4,8 +4,9 @@
 
 function apiStudents(token) {
   requireSession(token);
-  var schoolYear = currentSchoolYear_();
-  return { schoolYear: schoolYear, students: sortStudents(readStudents_()).map(serializeStudent_) };
+  var settings = readSettings();
+  var schoolYear = currentSchoolYear_(settings);
+  return { schoolYear: schoolYear, students: attachTeachers(sortStudents(readStudents_()), teacherMap_(settings)).map(serializeStudent_) };
 }
 
 /**

@@ -1,11 +1,12 @@
 /**
  * 설정 API: 설정 저장, 비밀값, 학교 검색, 채널 테스트, 알림 테스트/미리보기.
+ * 모두 'admin' 레벨 — 인증 모드 'settings' 에서도 잠긴다.
  */
 
 var _TRIGGER_TIME_KEYS = ['담당자알림시간', '학부모알림시간'];
 
 function apiSaveSettings(token, partial) {
-  requireSession(token);
+  requireSession(token, 'admin');
   var p = partial || {};
   _TRIGGER_TIME_KEYS.forEach(function (k) {
     if (k in p && !parseTimeHHmm(p[k])) throw new Error(k + ' 형식은 HH:mm 이어야 합니다 (예: 07:30)');
@@ -24,7 +25,7 @@ function apiSaveSettings(token, partial) {
 
 /** 비밀값 저장. NEIS 키는 유효성 검사 후 저장. 값이 비어 있으면 무시(삭제는 apiClearSecret). */
 function apiSaveSecrets(token, secrets) {
-  requireSession(token);
+  requireSession(token, 'admin');
   var s = secrets || {};
   var results = {};
   Object.keys(s).forEach(function (k) {
@@ -43,44 +44,45 @@ function apiSaveSecrets(token, secrets) {
 }
 
 function apiClearSecret(token, key) {
-  requireSession(token);
+  requireSession(token, 'admin');
   if (SECRET_KEYS.indexOf(key) < 0 || key.indexOf('APP_PASSWORD') === 0) throw new Error('삭제할 수 없는 키');
   setSecret(key, '');
   return { secretStatus: getSecretStatus(), channels: channelStatus_(readSettings()) };
 }
 
 function apiSearchSchools(token, name) {
-  requireSession(token);
+  requireSession(token, 'admin');
   return searchSchools_(name);
 }
 
 function apiSetSchool(token, school) {
-  requireSession(token);
+  requireSession(token, 'admin');
   if (!school || !school.atptCode || !school.schoolCode) throw new Error('학교 정보가 올바르지 않습니다');
   writeSettings({ '학교명': school.name || '', '시도교육청코드': school.atptCode, '학교코드': school.schoolCode });
   return { ok: true };
 }
 
 function apiTestChannel(token, channelId, to) {
-  requireSession(token);
+  requireSession(token, 'admin');
   return sendTestNotice_(channelId, to);
 }
 
 function apiTelegramChats(token) {
-  requireSession(token);
+  requireSession(token, 'admin');
   return telegramRecentChats_();
 }
 
 /** 담당자 알림 테스트 (실제 담당자에게 발송, 종류=테스트) */
 function apiSendTestNotice(token, kind) {
-  requireSession(token);
+  requireSession(token, 'admin');
   if (kind === 'weekly') return runStaffWeekly_({ force: true, test: true });
+  if (kind === 'teacher') return runTeacherDaily_({ force: true, test: true });
   return runStaffDaily_({ force: true, test: true });
 }
 
 /** 학부모 알림 미리보기 — 발송하지 않음 */
 function apiPreviewParentNotices(token) {
-  requireSession(token);
+  requireSession(token, 'admin');
   var settings = readSettings();
   var plan = planParentNotices_(settings, todayStr_());
   return {
@@ -95,7 +97,7 @@ function apiPreviewParentNotices(token) {
 
 /** 트리거 재등록 (설정 화면 버튼) */
 function apiReinstallTriggers(token) {
-  requireSession(token);
+  requireSession(token, 'admin');
   var n = setupTriggers_(readSettings());
   return { ok: true, count: n, triggers: listOurTriggers_() };
 }

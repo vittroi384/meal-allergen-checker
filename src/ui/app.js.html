@@ -5,7 +5,7 @@
  */
 var App = (function () {
   var TOKEN_KEY = 'mac_token';
-  var state = { token: null, boot: null, route: { name: 'dashboard', params: {} } };
+  var state = { token: null, boot: null, authMode: 'off', route: { name: 'dashboard', params: {} } };
   var views = {};
   var NAV = [
     ['dashboard', '대시보드'], ['calendar', '달력'], ['students', '학생'], ['meals', '급식'], ['settings', '설정'], ['logs', '알림 로그'], ['print', '인쇄'],
@@ -78,7 +78,12 @@ var App = (function () {
         .withSuccessHandler(resolve)
         .withFailureHandler(function (err) {
           var msg = err && err.message ? err.message : String(err);
-          if (/AUTH_REQUIRED/.test(msg)) { setToken(null); renderLogin('세션이 만료되었습니다. 다시 로그인하세요.'); reject(new Error('AUTH_REQUIRED')); return; }
+          if (/AUTH_REQUIRED/.test(msg)) {
+            setToken(null);
+            if (state.authMode === 'on') renderLogin('세션이 만료되었습니다. 다시 로그인하세요.');
+            else if (state.route.name === 'settings' && $('#main')) renderRoute(); // 설정 탭 잠금 패널로
+            reject(new Error('AUTH_REQUIRED')); return;
+          }
           msg = msg.replace(/^(Error|Exception):\s*/, '');
           reject(new Error(msg));
         });
@@ -128,7 +133,8 @@ var App = (function () {
   /** 데이터 변경 종류별 무효화 */
   var INVALIDATE = {
     meals: ['dashboard', 'month:', 'day:', 'meals:'],
-    students: ['dashboard', 'month:', 'day:', 'students', 'meals:'],
+    students: ['dashboard', 'month:', 'day:', 'students', 'classes', 'meals:'],
+    classes: ['dashboard', 'month:', 'day:', 'students', 'classes'],
   };
   function changed(kind) { invalidate(INVALIDATE[kind] || null); }
   function prefetch(key, loader) { if (!Object.prototype.hasOwnProperty.call(dataCache, key)) setTimeout(function () { cached(key, loader).catch(function () {}); }, 300); }
@@ -171,11 +177,15 @@ var App = (function () {
     app.innerHTML =
       '<header class="topbar"><div class="topbar-inner">' +
       '<a class="brand" href="#/dashboard"><span class="logo">🍱</span><span>급식 알레르기</span>' + (school ? '<span class="school">' + h(school) + '</span>' : '') + '</a>' +
-      '<nav class="nav">' + NAV.map(function (n) { return '<a href="#/' + n[0] + '" data-nav="' + n[0] + '">' + n[1] + '</a>'; }).join('') + '</nav>' +
+      '<nav class="nav">' + NAV.map(function (n) { return '<a href="#/' + n[0] + '" data-nav="' + n[0] + '">' + n[1] + (n[0] === 'settings' && state.authMode === 'settings' ? ' 🔒' : '') + '</a>'; }).join('') + '</nav>' +
       '<button class="btn sm ghost no-print" id="refresh-btn" title="이 화면의 데이터를 서버에서 다시 받습니다">↻ 새로고침</button>' +
-      '<button class="btn sm ghost no-print" id="logout-btn">로그아웃</button>' +
+      (state.authMode !== 'off' ? '<button class="btn sm ghost no-print" id="logout-btn"' + (state.token ? '' : ' hidden') + '>로그아웃</button>' : '') +
       '</div></header><main class="main" id="main"></main>';
-    $('#logout-btn').addEventListener('click', function () { api('apiLogout').catch(function () {}); setToken(null); invalidate(); renderLogin(); });
+    var lo = $('#logout-btn');
+    if (lo) lo.addEventListener('click', function () {
+      api('apiLogout').catch(function () {}); setToken(null); invalidate();
+      if (state.authMode === 'on') renderLogin(); else { lo.hidden = true; renderRoute(); }
+    });
     $('#refresh-btn').addEventListener('click', function () { invalidate(); refreshBoot().then(renderRoute, renderRoute); });
   }
   function renderRoute() {
@@ -193,25 +203,34 @@ var App = (function () {
       main.innerHTML = '<div class="card"><div class="notice danger">화면을 불러오지 못했습니다: ' + h(e.message) + '</div></div>';
     });
   }
-  function renderLogin(message) {
-    $('#app').innerHTML =
-      '<div class="login-wrap"><div class="card login-card">' +
-      '<h1>🍱 급식 알레르기 판별</h1><p class="sub">접속 비밀번호를 입력하세요</p>' +
-      (message ? '<div class="notice warn" style="margin-bottom:12px">' + h(message) + '</div>' : '') +
-      '<form id="login-form"><div class="field"><input type="password" id="pw" placeholder="비밀번호" autocomplete="current-password" autofocus></div>' +
-      '<div id="login-err" class="error-text" style="margin:8px 0;min-height:18px"></div>' +
-      '<button class="btn primary" style="width:100%;justify-content:center" id="login-btn">로그인</button></form>' +
-      '<p class="small muted" style="margin-top:14px">비밀번호는 스프레드시트 메뉴 [급식 알레르기] → 접속 비밀번호 재설정으로 다시 만들 수 있습니다.</p>' +
-      '</div></div>';
-    $('#login-form').addEventListener('submit', function (e) {
+  /** 로그인 패널을 container 에 그린다. 성공 시 토큰 저장 후 onSuccess() */
+  function loginPanel(container, opts) {
+    var o = opts || {};
+    container.innerHTML =
+      '<div class="card login-card" style="margin:0 auto">' +
+      '<h1>' + (o.title || '🍱 급식 알레르기 판별') + '</h1><p class="sub">' + h(o.sub || '접속 비밀번호를 입력하세요') + '</p>' +
+      (o.message ? '<div class="notice warn" style="margin-bottom:12px">' + h(o.message) + '</div>' : '') +
+      '<form class="login-form"><div class="field"><input type="password" class="pw" placeholder="비밀번호" autocomplete="current-password" autofocus></div>' +
+      '<div class="login-err error-text" style="margin:8px 0;min-height:18px"></div>' +
+      '<button class="btn primary" style="width:100%;justify-content:center">로그인</button></form>' +
+      '<p class="small muted" style="margin-top:14px">비밀번호는 스프레드시트 메뉴 [급식 알레르기] → 접속 비밀번호 → 비밀번호 재설정으로 다시 만들 수 있습니다.</p>' +
+      '</div>';
+    var form = $('.login-form', container);
+    form.addEventListener('submit', function (e) {
       e.preventDefault();
-      var btn = $('#login-btn'); busy(btn, true); $('#login-err').textContent = '';
-      apiNoAuth('apiLogin', $('#pw').value).then(function (r) {
-        if (!r.ok) { $('#login-err').textContent = r.error; busy(btn, false); return; }
+      var btn = $('button', form); busy(btn, true); $('.login-err', container).textContent = '';
+      apiNoAuth('apiLogin', $('.pw', container).value).then(function (r) {
+        if (!r.ok) { $('.login-err', container).textContent = r.error; busy(btn, false); return; }
         setToken(r.token);
-        return boot();
-      }).catch(function (e) { $('#login-err').textContent = e.message; busy(btn, false); });
+        var lo = $('#logout-btn'); if (lo) lo.hidden = false;
+        if (o.onSuccess) o.onSuccess();
+      }).catch(function (e) { $('.login-err', container).textContent = e.message; busy(btn, false); });
     });
+  }
+  /** 전체 잠금 모드의 로그인 화면 */
+  function renderLogin(message) {
+    $('#app').innerHTML = '<div class="login-wrap" id="login-wrap"></div>';
+    loginPanel($('#login-wrap'), { message: message, onSuccess: boot });
   }
   /** 로그인 직후: 부트스트랩 + 대시보드 + 이번 달 달력을 한 번의 호출로 받아 캐시에 넣는다 */
   function boot() {
@@ -225,28 +244,18 @@ var App = (function () {
   function refreshBoot() { return api('apiBootstrap').then(function (b) { state.boot = b; return b; }); }
   function start() {
     window.addEventListener('hashchange', renderRoute);
-    // Apps Script 는 앱을 iframe 안에서 실행한다. 내부 링크(#/...)는 최상위 창으로 나가지 않도록
-    // 기본 동작을 막고 iframe 의 hash 만 바꾼다. 외부 링크는 target=_blank 로만 연다.
-    document.addEventListener('click', function (e) {
-      var a = e.target.closest('a[href]');
-      if (!a) return;
-      var href = a.getAttribute('href') || '';
-      if (href.charAt(0) === '#') {
-        e.preventDefault();
-        if (location.hash === href) renderRoute(); else location.hash = href;
-      } else if (!a.target) {
-        a.target = '_blank';
-        a.rel = 'noopener';
-      }
-    });
-    var t = loadToken();
-    if (!t) { renderLogin(); return; }
-    state.token = t;
-    $('#app').innerHTML = '<div class="loading"><span class="spinner"></span> 불러오는 중…</div>';
-    apiNoAuth('apiCheckSession', t).then(function (r) { if (r.ok) return boot(); setToken(null); renderLogin(); });
+    // 인증 모드 확인 후 시작: off/settings 는 로그인 없이 바로, on 은 로그인 필요
+    apiNoAuth('apiAuthInfo').then(function (info) {
+      state.authMode = info.mode || 'off';
+      var t = loadToken();
+      if (state.authMode !== 'on') { state.token = t; $('#app').innerHTML = skeleton('dashboard'); return boot(); }
+      if (!t) { renderLogin(); return; }
+      state.token = t;
+      $('#app').innerHTML = skeleton('dashboard');
+      return apiNoAuth('apiCheckSession', t).then(function (r) { if (r.ok) return boot(); setToken(null); renderLogin(); });
+    }).catch(function (e) { $('#app').innerHTML = '<div class="login-wrap"><div class="card"><div class="notice danger">앱을 시작하지 못했습니다: ' + h(e.message) + '</div></div></div>'; });
   }
-
-  return { start: start, api: api, views: views, state: state, h: h, $: $, $$: $$, toast: toast, modal: modal, confirm: confirmDialog, busy: busy,
+  return { start: start, api: api, apiNoAuth: apiNoAuth, loginPanel: loginPanel, views: views, state: state, h: h, $: $, $$: $$, toast: toast, modal: modal, confirm: confirmDialog, busy: busy,
     fmtDate: fmtDate, fmtDateLong: fmtDateLong, addDays: addDays, addMonths: addMonths, today: today, dow: dow, DAYS: DAYS,
     allergenName: allergenName, codeTags: codeTags, menuBadges: menuBadges, downloadXlsx: downloadXlsx, readFileBase64: readFileBase64, go: go, refreshBoot: refreshBoot, pad: pad,
     cached: cached, cachePut: cachePut, invalidate: invalidate, changed: changed, prefetch: prefetch, skeleton: skeleton };

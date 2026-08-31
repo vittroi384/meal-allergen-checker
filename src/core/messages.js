@@ -15,9 +15,44 @@ function formatMenuLine(menu) {
   return menu.name + ' [' + formatAllergenTags(menu.codes) + ']';
 }
 
-/** 해당 학생 한 줄: '3-2-15 홍길동 — 돈까스(밀, 돼지고기), 계란찜(난류)' */
+/** 해당 학생 한 줄: '3-2-15 홍길동 — 돈까스(밀, 돼지고기), 계란찜(난류) [담임 김OO 010-…]' (담임 정보가 붙어 있을 때만) */
 function formatAffectedLine(a) {
-  return formatStudentLabel(a.student) + ' — ' + a.items.map(formatAffectedItem).join(', ');
+  var line = formatStudentLabel(a.student) + ' — ' + a.items.map(formatAffectedItem).join(', ');
+  if (a.student.teacher !== undefined) line += ' [' + formatTeacherShort(a.student.teacher) + ']';
+  return line;
+}
+
+/**
+ * 담임용 일일 알림 (자기 반 학생만).
+ * @param p { date, schoolName, grade, classNo, teacher, byType: { 중식: affected[] }, webAppUrl }
+ */
+function formatTeacherDaily(p) {
+  var count = 0;
+  Object.keys(p.byType).forEach(function (t) { count += p.byType[t].length; });
+  var title = '[' + (p.schoolName || '급식 알레르기') + '] ' + formatKoreanDate(p.date) + ' ' + p.grade + '학년 ' + p.classNo + '반 급식 알레르기 주의 학생 ' + count + '명';
+  var text = [title, ''];
+  var html = ['<h2 style="margin:0 0 12px;font-size:18px">' + _esc(title) + '</h2>'];
+  var greet = (p.teacher && p.teacher.name ? p.teacher.name + ' 선생님, ' : '') + '오늘 급식에서 주의가 필요한 우리 반 학생입니다.';
+  text.push(greet); text.push('');
+  html.push('<p>' + _esc(greet) + '</p>');
+  Object.keys(p.byType).forEach(function (t) {
+    var list = p.byType[t];
+    if (!list.length) return;
+    text.push('■ ' + t);
+    html.push('<h3 style="margin:14px 0 6px;font-size:15px">' + _esc(t) + '</h3><ul style="margin:0;padding-left:18px">');
+    list.forEach(function (a) {
+      var line = a.student.number + '번 ' + a.student.name + ' — ' + a.items.map(formatAffectedItem).join(', ');
+      text.push('  - ' + line);
+      html.push('<li><b>' + _esc(a.student.number + '번 ' + a.student.name) + '</b> — ' + _esc(a.items.map(formatAffectedItem).join(', ')) + '</li>');
+    });
+    html.push('</ul>');
+    text.push('');
+  });
+  if (p.webAppUrl) {
+    text.push('자세히 보기: ' + p.webAppUrl);
+    html.push('<p style="margin-top:20px"><a href="' + _esc(p.webAppUrl) + '">웹앱에서 자세히 보기</a></p>');
+  }
+  return { subject: title, text: text.join('\n'), html: '<div style="font-family:sans-serif;line-height:1.5">' + html.join('') + '</div>', count: count };
 }
 
 /**
@@ -68,11 +103,13 @@ function formatStaffDaily(p) {
     if (!r.affected.length) {
       htmlParts.push('<p style="margin:0;color:#6b7280">해당 학생 없음</p>');
     } else {
+      var withTeacher = r.affected.some(function (a) { return a.student.teacher !== undefined; });
       htmlParts.push('<table cellpadding="6" style="border-collapse:collapse;font-size:14px">' +
-        '<tr style="background:#f3f4f6"><th align="left">학생</th><th align="left">문제 메뉴(원인)</th></tr>');
+        '<tr style="background:#f3f4f6"><th align="left">학생</th><th align="left">문제 메뉴(원인)</th>' + (withTeacher ? '<th align="left">담임</th>' : '') + '</tr>');
       r.affected.forEach(function (a) {
         htmlParts.push('<tr style="border-top:1px solid #e5e7eb"><td><b>' + _esc(formatStudentLabel(a.student)) + '</b></td><td>' +
-          _esc(a.items.map(formatAffectedItem).join(', ')) + '</td></tr>');
+          _esc(a.items.map(formatAffectedItem).join(', ')) + '</td>' +
+          (withTeacher ? '<td style="color:#374151">' + _esc(formatTeacherShort(a.student.teacher).replace(/^담임 /, '')) + '</td>' : '') + '</tr>');
       });
       htmlParts.push('</table>');
     }

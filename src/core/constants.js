@@ -34,6 +34,7 @@ var CODES_CHECKED_NONE = '-';
 
 var SHEETS = Object.freeze({
   STUDENTS: '학생',
+  CLASSES: '학급',
   MEALS: '급식',
   LOGS: '알림로그',
   SETTINGS: '설정',
@@ -45,6 +46,7 @@ var HEADERS = Object.freeze({
     '학년도', '학년', '반', '번호', '이름', '알레르기코드', '기타알레르기', '비고',
     '학부모이메일', '학부모연락처', '학부모알림', '사용여부',
   ]),
+  CLASSES: Object.freeze(['학년도', '학년', '반', '담임이름', '담임연락처', '담임이메일']),
   MEALS: Object.freeze(['날짜', '식사구분', '메뉴명', '알레르기코드', '출처', '수동수정여부', '원본문자열']),
   LOGS: Object.freeze(['발송시각', '채널', '종류', '수신자', '대상일', '내용요약', '성공여부', '오류', '중복키']),
   SETTINGS: Object.freeze(['키', '값', '설명']),
@@ -56,6 +58,9 @@ var FIELD_MAP = Object.freeze({
     '학년도': 'schoolYear', '학년': 'grade', '반': 'classNo', '번호': 'number', '이름': 'name',
     '알레르기코드': 'codes', '기타알레르기': 'keywords', '비고': 'note',
     '학부모이메일': 'parentEmail', '학부모연락처': 'parentPhone', '학부모알림': 'parentNotify', '사용여부': 'active',
+  }),
+  CLASSES: Object.freeze({
+    '학년도': 'schoolYear', '학년': 'grade', '반': 'classNo', '담임이름': 'teacherName', '담임연락처': 'teacherPhone', '담임이메일': 'teacherEmail',
   }),
   MEALS: Object.freeze({
     '날짜': 'date', '식사구분': 'mealType', '메뉴명': 'name', '알레르기코드': 'codes',
@@ -82,6 +87,7 @@ var CHANNELS = Object.freeze({ EMAIL: '이메일', SMS: '문자', TELEGRAM: '텔
 var NOTICE_KINDS = Object.freeze({
   STAFF_DAILY: '담당자일일',
   STAFF_WEEKLY: '담당자주간',
+  TEACHER_DAILY: '담임일일',
   SYNC_RESULT: '동기화결과',
   PARENT: '학부모',
   TEST: '테스트',
@@ -90,7 +96,7 @@ var NOTICE_KINDS = Object.freeze({
 
 /** 설정 시트에서 체크박스로 표시할 불리언 키 */
 var SETTING_BOOL_KEYS = Object.freeze([
-  '채널_이메일', '채널_문자', '채널_텔레그램', '학부모알림사용', '담당자일일알림', '담당자주간알림', '주말공휴일알림',
+  '채널_이메일', '채널_문자', '채널_텔레그램', '학부모알림사용', '담당자일일알림', '담당자주간알림', '담임알림', '주말공휴일알림',
 ]);
 
 /** 시간 트리거 핸들러 이름 (setup 이 등록/정리하는 대상) */
@@ -117,6 +123,7 @@ var SETTING_DEFS = Object.freeze([
   ['학부모알림사용', 'FALSE', '전체 on/off. 켜면 학부모알림이 "없음"이 아닌 학생에게 전날 발송'],
   ['담당자일일알림', 'TRUE', ''],
   ['담당자주간알림', 'TRUE', '매주 월요일'],
+  ['담임알림', 'FALSE', '켜면 담당자 알림 시각에 담임 이메일(학급 시트)로 자기 반 해당 학생만 발송'],
   ['주말공휴일알림', 'FALSE', '급식 데이터가 없는 날에도 담당자 알림을 보낼지'],
   ['웹앱URL', '', '배포 후 자동 기록 (알림 메일의 링크에 사용)'],
 ]);
@@ -139,6 +146,7 @@ var STATE_KEYS = Object.freeze([
   'LAST_SYNC_AT',
   'LAST_SYNC_RESULT',
   'DEPLOYMENT_ID',
+  'AUTH_MODE',
 ]);
 
 var SESSION_TTL_SECONDS = 6 * 60 * 60; // CacheService 상한

@@ -124,9 +124,34 @@ function readStudents_() {
   });
 }
 
-/** 판별 대상 학생 (활성 + 현재 학년도) */
+/** 학급(담임) 목록. 캐시됨 */
+function readClasses_() {
+  return cached_('classes', function () {
+    try {
+      return readTable_(SHEETS.CLASSES, FIELD_MAP.CLASSES).map(normalizeClass);
+    } catch (e) {
+      return []; // 학급 시트가 아직 없으면 (초기 설정 전) 빈 목록
+    }
+  });
+}
+
+/** 현재 학년도 담임 맵 { 'grade|classNo': {name, phone, email} } */
+function teacherMap_(settings) {
+  return buildTeacherMap(readClasses_(), currentSchoolYear_(settings));
+}
+
+function appendClasses_(classes) {
+  return appendObjects_(SHEETS.CLASSES, HEADERS.CLASSES, FIELD_MAP.CLASSES, classes.map(classToSheetObject));
+}
+
+function updateClassRow_(rowNumber, cls) {
+  updateObjectRow_(SHEETS.CLASSES, rowNumber, HEADERS.CLASSES, FIELD_MAP.CLASSES, classToSheetObject(cls));
+}
+
+/** 판별 대상 학생 (활성 + 현재 학년도) — 담임 정보(teacher) 를 붙여서 반환 */
 function readActiveStudents_(settings) {
-  return filterActiveStudents(readStudents_(), currentSchoolYear_(settings));
+  var s = settings || readSettings();
+  return attachTeachers(filterActiveStudents(readStudents_(), currentSchoolYear_(s)), teacherMap_(s));
 }
 
 /** 전체 급식 행 (정규화, 날짜는 yyyy-MM-dd 문자열). 10분 캐시, 급식 시트 변경 시 즉시 무효화. */

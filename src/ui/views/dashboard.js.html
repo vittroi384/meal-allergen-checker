@@ -45,7 +45,7 @@ App.views.dashboard = {
         html += '<div class="grid cols-2"><div><div class="small muted" style="margin-bottom:6px;font-weight:700">메뉴</div><div class="menu-list">' +
           r.menus.map(function (m) { return '<div class="menu-item' + (m.needsCheck ? ' needs' : '') + '"><span class="name">' + h(m.name) + '</span><span class="tags">' + App.codeTags(m.codes) + '</span>' + App.menuBadges(m) + '</div>'; }).join('') +
           '</div></div><div><div class="small muted" style="margin-bottom:6px;font-weight:700">해당 학생</div>' +
-          (r.affected.length ? '<div class="affected-list">' + r.affected.map(function (a) { return '<div class="affected-item"><div class="who">' + h(a.student.label) + '</div><div class="why">' + h(a.text) + '</div></div>'; }).join('') + '</div>' : '<div class="empty">해당 학생 없음 🎉</div>') +
+          (r.affected.length ? '<div class="affected-list">' + r.affected.map(function (a) { return '<div class="affected-item"><div class="who">' + h(a.student.label) + ' <span class="small muted" style="font-weight:500">' + h(a.student.teacherLabel || '') + '</span></div><div class="why">' + h(a.text) + '</div></div>'; }).join('') + '</div>' : '<div class="empty">해당 학생 없음 🎉</div>') +
           '</div></div></div>';
       });
 
