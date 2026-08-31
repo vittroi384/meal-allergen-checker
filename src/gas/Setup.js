@@ -9,6 +9,10 @@ function onOpen() {
     .createMenu(MENU_TITLE)
     .addItem('초기 설정 (처음 한 번 / 설정 변경 후)', 'setup')
     .addItem('웹앱 열기', 'menuOpenWebApp')
+    .addItem('서식 다시 적용', 'menuReapplyFormatting')
+    .addSeparator()
+    .addItem('NEIS 인증키 입력/변경', 'menuSetNeisKey')
+    .addItem('학교 검색·선택', 'menuSelectSchool')
     .addSeparator()
     .addItem('지금 급식 동기화 (이번 달 + 다음 달)', 'menuSyncNow')
     .addItem('오늘 담당자 알림 테스트 발송', 'menuTestDailyNotice')
@@ -89,7 +93,6 @@ function ensureAllSheets_() {
 
   // 알림로그
   var lg = ensureSheet_(SHEETS.LOGS, HEADERS.LOGS);
-  lg.getRange(2, 1, Math.max(1, lg.getMaxRows() - 1), 1).setNumberFormat('@');
 
   // 설정
   var sg = ensureSheet_(SHEETS.SETTINGS, HEADERS.SETTINGS);
@@ -106,11 +109,8 @@ function ensureAllSheets_() {
     if (s && s.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(s);
   });
 
-  // 열 너비 자동
-  [st, ml, lg, sg, tp].forEach(function (s) {
-    try { s.autoResizeColumns(1, s.getLastColumn()); } catch (e) { /* ignore */ }
-    s.getRange(1, 1, 1, s.getLastColumn()).protect().setWarningOnly(true).setDescription('헤더 행은 수정하지 마세요');
-  });
+  // 서식 (열 너비·헤더·필터·줄무늬·텍스트 서식)
+  applyAllFormatting_();
 
   // 시트 순서
   var order = [SHEETS.STUDENTS, SHEETS.MEALS, SHEETS.SETTINGS, SHEETS.LOGS, SHEETS.TEMPLATE];
@@ -191,8 +191,6 @@ function _seedSettings(sheet) {
       cell.setNumberFormat('@');
     }
   }
-  sheet.setColumnWidth(2, 220);
-  sheet.setColumnWidth(3, 420);
 }
 
 function _applyTemplateNotes(sheet) {
@@ -274,6 +272,47 @@ function menuRemoveAllTriggers() {
     '다른 계정으로 이관한 뒤 구 계정에서 실행하는 용도입니다. 계속할까요?')) return;
   var n = removeOurTriggers_();
   _alert('완료', n + '개의 트리거를 해제했습니다. 이 시트에서는 더 이상 자동 동기화/알림이 실행되지 않습니다.\n다시 켜려면 "초기 설정"을 실행하세요.');
+}
+
+/** NEIS 인증키 입력 (유효성 확인 후 Script Properties 에 저장) */
+function menuSetNeisKey() {
+  var ui = SpreadsheetApp.getUi();
+  var status = hasSecret('NEIS_API_KEY') ? '현재: 설정됨 (새 키를 입력하면 교체됩니다)' : '현재: 미설정';
+  var res = ui.prompt('NEIS 인증키 입력', status + '\n\nopen.neis.go.kr 에서 발급받은 인증키를 붙여넣으세요.\n(키는 시트가 아니라 스크립트 속성에 암호화 저장되며 어디에도 표시되지 않습니다)', ui.ButtonSet.OK_CANCEL);
+  if (res.getSelectedButton() !== ui.Button.OK) return;
+  var key = String(res.getResponseText() || '').trim();
+  if (!key) { _alert('취소됨', '입력된 키가 없습니다.'); return; }
+  var test;
+  try { test = testNeisKey_(key); } catch (e) { test = { ok: false, error: String(e.message || e) }; }
+  if (!test.ok) {
+    _alert('인증키 확인 실패', '저장하지 않았습니다.\n\n' + test.error + '\n\n키를 다시 확인하세요. (발급 직후에는 몇 분 걸릴 수 있습니다)');
+    return;
+  }
+  setSecret('NEIS_API_KEY', key);
+  _alert('저장 완료', 'NEIS 인증키가 유효하며 저장되었습니다.\n다음: 메뉴 → "학교 검색·선택"');
+}
+
+/** 학교 검색 → 번호 선택 → 설정 저장 */
+function menuSelectSchool() {
+  var ui = SpreadsheetApp.getUi();
+  var settings = readSettings();
+  var cur = settings['학교명'] ? '현재: ' + settings['학교명'] + ' (' + settings['시도교육청코드'] + '/' + settings['학교코드'] + ')\n\n' : '';
+  var res = ui.prompt('학교 검색', cur + '학교명을 입력하세요 (예: 대치초, 서울대치초등학교)', ui.ButtonSet.OK_CANCEL);
+  if (res.getSelectedButton() !== ui.Button.OK) return;
+  var r;
+  try { r = searchSchools_(res.getResponseText()); } catch (e) { r = { ok: false, error: String(e.message || e), schools: [] }; }
+  if (!r.ok) { _alert('검색 실패', r.error); return; }
+  if (!r.schools.length) { _alert('검색 결과 없음', '다른 이름으로 다시 검색하세요.'); return; }
+  var list = r.schools.slice(0, 15);
+  var lines = list.map(function (s, i) { return (i + 1) + '. ' + s.name + ' — ' + s.kind + ', ' + s.atptName + '\n    ' + s.address; });
+  var pick = ui.prompt('학교 선택 (' + r.schools.length + '건' + (r.schools.length > 15 ? ', 상위 15건 표시' : '') + ')',
+    lines.join('\n') + '\n\n번호를 입력하세요:', ui.ButtonSet.OK_CANCEL);
+  if (pick.getSelectedButton() !== ui.Button.OK) return;
+  var n = parseInt(pick.getResponseText(), 10);
+  if (!(n >= 1 && n <= list.length)) { _alert('취소됨', '올바른 번호가 아닙니다.'); return; }
+  var s = list[n - 1];
+  writeSettings({ '학교명': s.name, '시도교육청코드': s.atptCode, '학교코드': s.schoolCode });
+  _alert('학교 저장 완료', s.name + ' (' + s.atptCode + ' / ' + s.schoolCode + ')\n\n다음: 메뉴 → "지금 급식 동기화"');
 }
 
 function menuSyncNow() {
