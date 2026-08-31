@@ -107,67 +107,75 @@ function runStaffWeekly_(opts) {
  * 학부모 전날 알림. 다음 급식일(내일부터 7일 안)의 해당 학생에게 개별 발송.
  * 문자 채널 비활성 시 이메일로 대체(로그에 '대체발송').
  */
+/**
+ * 학부모 알림 계획(발송 없음). 설정 화면 미리보기와 실제 발송이 공유.
+ * @returns { target, reason, items: [{ student, mealType, channel:'sms'|'email', to, subject, text, fallback, error, dedupeKey }] }
+ */
+function planParentNotices_(settings, today) {
+  var mealTypes = managedMealTypes_(settings);
+  var upcoming = readMealsInRange_(addDays(today, 1), addDays(today, 7), mealTypes);
+  var target = nextMealDate(today, upcoming.map(function (m) { return m.date; }), 7);
+  var plan = { target: target, reason: '', items: [] };
+  if (!target) { plan.reason = '앞으로 7일 안에 급식 데이터가 없음'; return plan; }
+  var students = readActiveStudents_(settings).filter(function (s) { return s.parentNotify !== PARENT_NOTIFY.NONE; });
+  if (!students.length) { plan.reason = '학부모 알림 대상 학생(학부모알림≠없음)이 없음'; return plan; }
+  var menus = upcoming.filter(function (m) { return m.date === target; });
+  var smsOn = smsChannel_.isEnabled(settings);
+  var emailOn = emailChannel_.isEnabled(settings);
+  mealTypes.forEach(function (t) {
+    var result = checkMeal(students, menus.filter(function (m) { return m.mealType === t; }));
+    result.affected.forEach(function (a) {
+      var st = a.student;
+      var msg = formatParentMessage({ schoolName: settings['학교명'], date: target, mealType: t, student: st, items: a.items, todayStr: today });
+      var item = { student: st, mealType: t, channel: st.parentNotify === PARENT_NOTIFY.SMS ? 'sms' : 'email', to: '', subject: msg.subject, text: msg.text, fallback: false, error: '' };
+      item.to = item.channel === 'sms' ? st.parentPhone : st.parentEmail;
+      if (item.channel === 'sms' && !smsOn) {
+        if (st.parentEmail) { item.channel = 'email'; item.to = st.parentEmail; item.fallback = true; }
+        else item.error = '문자 채널 비활성이고 이메일도 없음';
+      }
+      if (!item.error && item.channel === 'email' && !emailOn) item.error = '이메일 채널 비활성';
+      if (!item.error && !item.to) item.error = '연락처 없음';
+      item.dedupeKey = calcDedupeKey(NOTICE_KINDS.PARENT, target + '|' + t, item.to, studentKey(st));
+      plan.items.push(item);
+    });
+  });
+  return plan;
+}
+
+/**
+ * 학부모 전날 알림 실행. 다음 급식일(내일부터 7일 안)의 해당 학생에게 개별 발송.
+ * 문자 채널 비활성 시 이메일로 대체(로그에 '대체발송').
+ */
 function runParentNotices_(opts) {
   var o = opts || {};
   var started = Date.now();
   var settings = readSettings();
   if (!o.force && !settingBool_(settings, '학부모알림사용')) return { sent: 0, summary: '학부모 알림이 꺼져 있습니다' };
-
   var today = o.date || todayStr_();
-  var mealTypes = managedMealTypes_(settings);
-  var upcoming = readMealsInRange_(addDays(today, 1), addDays(today, 7), mealTypes);
-  var target = nextMealDate(today, upcoming.map(function (m) { return m.date; }), 7);
-  if (!target) return { sent: 0, summary: '앞으로 7일 안에 급식 데이터가 없어 발송하지 않음' };
+  var plan = planParentNotices_(settings, today);
+  if (!plan.target || !plan.items.length) return { sent: 0, target: plan.target, summary: plan.reason || (plan.target + ' 해당 학생 없음') };
 
-  var students = readActiveStudents_(settings).filter(function (s) { return s.parentNotify !== PARENT_NOTIFY.NONE; });
-  if (!students.length) return { sent: 0, summary: '학부모 알림 대상 학생이 없음' };
-
-  var menus = upcoming.filter(function (m) { return m.date === target; });
   var done = readSuccessfulDedupeKeys_(addDays(today, -7));
-  var smsOn = smsChannel_.isEnabled(settings);
-  var emailOn = emailChannel_.isEnabled(settings);
-  var out = { target: target, sent: 0, failed: 0, skipped: 0, fallback: 0, truncated: false };
-
-  mealTypes.forEach(function (t) {
-    var result = checkMeal(students, menus.filter(function (m) { return m.mealType === t; }));
-    for (var i = 0; i < result.affected.length; i++) {
-      if (Date.now() - started > _PARENT_TIME_BUDGET_MS) { out.truncated = true; return; }
-      var a = result.affected[i];
-      var st = a.student;
-      var msg = formatParentMessage({ schoolName: settings['학교명'], date: target, mealType: t, student: st, items: a.items, todayStr: today });
-      var channel = st.parentNotify === PARENT_NOTIFY.SMS ? 'sms' : 'email';
-      var to = channel === 'sms' ? st.parentPhone : st.parentEmail;
-      var note = '';
-      if (channel === 'sms' && !smsOn) {
-        if (st.parentEmail) { channel = 'email'; to = st.parentEmail; note = '대체발송(문자 비활성→이메일) '; out.fallback++; }
-        else {
-          appendLog_({ channel: CHANNELS.SMS, kind: NOTICE_KINDS.PARENT, recipient: st.parentPhone, targetDate: target, summary: msg.text, ok: false,
-            error: '문자 채널 비활성이고 이메일도 없음 — ' + formatStudentLabel(st) });
-          out.failed++;
-          continue;
-        }
-      }
-      if (channel === 'email' && !emailOn) {
-        appendLog_({ channel: CHANNELS.EMAIL, kind: NOTICE_KINDS.PARENT, recipient: to, targetDate: target, summary: msg.text, ok: false, error: '이메일 채널 비활성 — ' + formatStudentLabel(st) });
-        out.failed++;
-        continue;
-      }
-      if (!to) {
-        appendLog_({ channel: channel === 'sms' ? CHANNELS.SMS : CHANNELS.EMAIL, kind: NOTICE_KINDS.PARENT, recipient: '', targetDate: target, summary: msg.text, ok: false, error: '연락처 없음 — ' + formatStudentLabel(st) });
-        out.failed++;
-        continue;
-      }
-      var key = calcDedupeKey(NOTICE_KINDS.PARENT, target + '|' + t, to, studentKey(st));
-      if (done[key]) { out.skipped++; continue; }
-      var r = channel === 'sms'
-        ? smsChannel_.send({ to: to, text: msg.text, settings: settings })
-        : emailChannel_.send({ to: to, subject: msg.subject, text: msg.text });
-      appendLog_({ channel: channel === 'sms' ? CHANNELS.SMS : CHANNELS.EMAIL, kind: NOTICE_KINDS.PARENT, recipient: to, targetDate: target,
-        summary: note + msg.text, ok: r.ok, error: r.error, dedupeKey: key });
-      r.ok ? out.sent++ : out.failed++;
+  var out = { target: plan.target, sent: 0, failed: 0, skipped: 0, fallback: 0, truncated: false };
+  for (var i = 0; i < plan.items.length; i++) {
+    if (Date.now() - started > _PARENT_TIME_BUDGET_MS) { out.truncated = true; break; }
+    var it = plan.items[i];
+    var chName = it.channel === 'sms' ? CHANNELS.SMS : CHANNELS.EMAIL;
+    if (it.error) {
+      appendLog_({ channel: chName, kind: NOTICE_KINDS.PARENT, recipient: it.to, targetDate: plan.target, summary: it.text, ok: false, error: it.error + ' — ' + formatStudentLabel(it.student) });
+      out.failed++;
+      continue;
     }
-  });
-  out.summary = target + ' 학부모 알림: 발송 ' + out.sent + ', 실패 ' + out.failed + ', 중복 건너뜀 ' + out.skipped +
+    if (done[it.dedupeKey]) { out.skipped++; continue; }
+    var r = it.channel === 'sms'
+      ? smsChannel_.send({ to: it.to, text: it.text, settings: settings })
+      : emailChannel_.send({ to: it.to, subject: it.subject, text: it.text });
+    if (it.fallback) out.fallback++;
+    appendLog_({ channel: chName, kind: NOTICE_KINDS.PARENT, recipient: it.to, targetDate: plan.target,
+      summary: (it.fallback ? '대체발송(문자 비활성→이메일) ' : '') + it.text, ok: r.ok, error: r.error, dedupeKey: it.dedupeKey });
+    r.ok ? out.sent++ : out.failed++;
+  }
+  out.summary = plan.target + ' 학부모 알림: 발송 ' + out.sent + ', 실패 ' + out.failed + ', 중복 건너뜀 ' + out.skipped +
     (out.fallback ? ', 이메일 대체 ' + out.fallback : '') + (out.truncated ? ' (시간 제한으로 중단 — 다음 실행에서 이어짐)' : '');
   return out;
 }

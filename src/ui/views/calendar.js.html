@@ -1,0 +1,153 @@
+<script>
+/* 월간 달력 + 날짜 상세(메뉴 편집) */
+App.views.calendar = {
+  title: '달력',
+  render: function (el, r) {
+    var h = App.h;
+    var ym = /^\d{4}-\d{2}$/.test(r.arg) ? r.arg : App.today().slice(0, 7);
+    return App.api('apiMonth', ym).then(function (m) {
+      var byDate = {};
+      m.days.forEach(function (d) { byDate[d.date] = d; });
+      var first = m.start, last = m.end;
+      var firstDow = App.dow(first); // 0=일
+      var lead = (firstDow + 6) % 7;   // 월요일 시작
+      var cells = [];
+      for (var i = 0; i < lead; i++) cells.push(null);
+      var cur = first;
+      while (cur <= last) { cells.push(cur); cur = App.addDays(cur, 1); }
+      while (cells.length % 7) cells.push(null);
+      var p = ym.split('-');
+      var todayStr = App.today();
+      var totalAffected = 0, totalUnchecked = 0;
+      m.days.forEach(function (d) { totalAffected += d.affectedCount; totalUnchecked += d.uncheckedCount; });
+
+      el.innerHTML =
+        '<div class="page-head"><div><h2>' + p[0] + '년 ' + Number(p[1]) + '월</h2><div class="sub">급식일 ' + m.days.length + '일 · 해당 연인원 ' + totalAffected + '명 · 확인 필요 메뉴 ' + totalUnchecked + '개</div></div>' +
+        '<div class="actions"><button class="btn" id="prev">‹ 이전 달</button><button class="btn" id="today">이번 달</button><button class="btn" id="next">다음 달 ›</button><input type="month" id="pick" value="' + ym + '" style="width:auto">' +
+        '<button class="btn primary" id="dl">이 달 결과 xlsx</button></div></div>' +
+        '<div class="card"><div class="cal-grid">' +
+        ['월', '화', '수', '목', '금', '토', '일'].map(function (d, i) { return '<div class="cal-dow' + (i === 5 ? ' sat' : i === 6 ? ' sun' : '') + '">' + d + '</div>'; }).join('') +
+        cells.map(function (d) {
+          if (!d) return '<div class="cal-cell other"></div>';
+          var info = byDate[d];
+          var dw = App.dow(d);
+          var cls = 'cal-cell' + (d === todayStr ? ' today' : '') + (dw === 0 ? ' sun' : dw === 6 ? ' sat' : '') + (!info ? ' empty-day' : '');
+          var body = info ? '<div class="cnt ' + (info.affectedCount ? '' : 'zero') + '">' + (info.affectedCount ? info.affectedCount + '명' : '0') + '</div>' : '<div class="cnt zero" style="font-size:11px">급식 없음</div>';
+          var badges = info ? (info.uncheckedCount ? '<span class="badge warn tiny">확인 ' + info.uncheckedCount + '</span>' : '') + (info.manualProtected ? '<span class="badge purple tiny">수동</span>' : '') : '';
+          return '<div class="' + cls + '" onclick="App.go(\'day/' + d + '\')"><div class="d">' + Number(d.slice(8)) + '</div>' + body + '<div class="badges">' + badges + '</div></div>';
+        }).join('') +
+        '</div><p class="small muted" style="margin-top:10px">숫자는 그날 급식을 못 먹는 학생 수(관리 끼니 기준). 날짜를 누르면 메뉴와 학생을 보고 편집할 수 있습니다.</p></div>';
+      App.$('#prev').onclick = function () { App.go('calendar/' + App.addMonths(ym, -1)); };
+      App.$('#next').onclick = function () { App.go('calendar/' + App.addMonths(ym, 1)); };
+      App.$('#today').onclick = function () { App.go('calendar/' + todayStr.slice(0, 7)); };
+      App.$('#pick').onchange = function (e) { if (e.target.value) App.go('calendar/' + e.target.value); };
+      App.$('#dl').onclick = function (e) { App.downloadXlsx('month', { ym: ym }, e.currentTarget); };
+    });
+  },
+};
+
+App.views.day = {
+  title: '날짜 상세',
+  render: function (el, r) {
+    var h = App.h;
+    var date = /^\d{4}-\d{2}-\d{2}$/.test(r.arg) ? r.arg : App.today();
+    var self = this;
+    return App.api('apiDay', date).then(function (d) {
+      var html = '<div class="page-head"><div><h2>' + h(d.label) + '</h2><div class="sub"><a href="#/calendar/' + date.slice(0, 7) + '">← 달력</a></div></div>' +
+        '<div class="actions"><button class="btn" id="prev">‹ 전날</button><button class="btn" id="next">다음날 ›</button><input type="date" id="pick" value="' + date + '" style="width:auto"><button class="btn primary" id="dl">이 날 결과 xlsx</button></div></div>';
+      d.mealTypes.forEach(function (t) {
+        var res = d.byType[t];
+        html += '<div class="card" data-type="' + h(t) + '"><div class="card-head"><h3>' + h(t) +
+          (res.menus.length ? '<span class="badge ' + (res.count ? 'danger' : 'ok') + '">해당 ' + res.count + '명</span>' : '<span class="badge gray">데이터 없음</span>') +
+          (res.protected ? '<span class="badge purple" title="이 끼니는 수동으로 수정되어 NEIS 재동기화 때 덮어쓰지 않습니다">수동 보호</span>' : '') + '</h3>' +
+          '<div class="actions"><button class="btn sm" data-add="' + h(t) + '">+ 메뉴 추가</button>' +
+          (res.protected ? '<button class="btn sm danger" data-revert="' + h(t) + '">NEIS 데이터로 되돌리기</button>' : '') + '</div></div>';
+        if (res.protected) html += '<div class="notice info small" style="margin-bottom:10px">이 끼니는 수동 수정됨 — 자동 동기화가 건너뜁니다. NEIS 원본으로 돌리려면 "NEIS 데이터로 되돌리기"를 누르세요.</div>';
+        html += '<div class="grid cols-2"><div><div class="small muted" style="margin-bottom:6px;font-weight:700">메뉴 ' + res.menus.length + '개</div>';
+        html += res.menus.length ? '<div class="menu-list">' + res.menus.map(function (m) {
+          return '<div class="menu-item' + (m.needsCheck ? ' needs' : '') + '"><span class="name">' + h(m.name) + '</span><span class="tags">' + App.codeTags(m.codes) + '</span>' + App.menuBadges(m) +
+            '<span class="ops">' + (m.needsCheck ? '<button class="btn sm" data-check="' + m._row + '" title="이 메뉴는 알레르기 유발식품이 없음을 확인했습니다">확인함</button>' : '') +
+            (m.checkedNone ? '<button class="btn sm ghost" data-uncheck="' + m._row + '">확인 취소</button>' : '') +
+            '<button class="btn sm ghost" data-edit="' + m._row + '">수정</button><button class="btn sm ghost" data-del="' + m._row + '" style="color:var(--danger)">삭제</button></span></div>';
+        }).join('') + '</div>' : '<div class="empty">메뉴가 없습니다. 동기화하거나 직접 추가하세요.</div>';
+        html += '</div><div><div class="small muted" style="margin-bottom:6px;font-weight:700">해당 학생 ' + res.count + '명</div>' +
+          (res.affected.length ? '<div class="affected-list">' + res.affected.map(function (a) {
+            return '<div class="affected-item"><div class="who">' + h(a.student.label) + ' <span class="small muted">' + h(a.student.codeNames.join(', ')) + (a.student.keywords.length ? ' / ' + h(a.student.keywords.join(', ')) : '') + '</span></div><div class="why">' + h(a.text) + '</div></div>';
+          }).join('') + '</div>' : '<div class="empty">' + (res.menus.length ? '해당 학생 없음 🎉' : '') + '</div>') + '</div></div>';
+        if (res.uncheckedMenus.length) html += '<div class="notice warn small" style="margin-top:12px"><b>알레르기 표시가 없는 메뉴:</b> ' + h(res.uncheckedMenus.join(', ')) + ' — 실제로 없는지 확인 후 "확인함"을 누르거나 코드를 입력하세요.</div>';
+        html += '</div>';
+      });
+      el.innerHTML = html;
+
+      var menusByRow = {};
+      d.mealTypes.forEach(function (t) { d.byType[t].menus.forEach(function (m) { menusByRow[m._row] = m; }); });
+      var reload = function () { return self.render(el, r); };
+      App.$('#prev').onclick = function () { App.go('day/' + App.addDays(date, -1)); };
+      App.$('#next').onclick = function () { App.go('day/' + App.addDays(date, 1)); };
+      App.$('#pick').onchange = function (e) { if (e.target.value) App.go('day/' + e.target.value); };
+      App.$('#dl').onclick = function (e) { App.downloadXlsx('day', { date: date }, e.currentTarget); };
+      el.addEventListener('click', function (e) {
+        var b = e.target.closest('button');
+        if (!b) return;
+        if (b.dataset.add) return App.menuEditor({ date: date, mealType: b.dataset.add }, reload);
+        if (b.dataset.edit) return App.menuEditor(menusByRow[b.dataset.edit], reload);
+        if (b.dataset.del) {
+          var m = menusByRow[b.dataset.del];
+          return App.confirm('메뉴 삭제', '"' + m.name + '" 을(를) 삭제할까요?\n이 끼니는 수동 보호 상태가 되어 다음 동기화에서 덮어쓰지 않습니다.', '삭제', true).then(function (ok) {
+            if (!ok) return;
+            App.api('apiDeleteMenu', Number(b.dataset.del)).then(function () { App.toast('삭제했습니다', 'ok'); reload(); }).catch(function (err) { App.toast(err.message, 'danger'); });
+          });
+        }
+        if (b.dataset.check || b.dataset.uncheck) {
+          var row = Number(b.dataset.check || b.dataset.uncheck);
+          App.busy(b, true);
+          return App.api('apiMarkMenuChecked', row, !!b.dataset.check).then(function () { App.toast(b.dataset.check ? '확인 처리했습니다' : '확인을 취소했습니다', 'ok'); reload(); }).catch(function (err) { App.toast(err.message, 'danger'); App.busy(b, false); });
+        }
+        if (b.dataset.revert) {
+          var t = b.dataset.revert;
+          return App.confirm('NEIS 데이터로 되돌리기', date + ' ' + t + '의 모든 메뉴(수동 입력 포함)를 삭제하고 NEIS 원본으로 다시 채웁니다. 계속할까요?', '되돌리기', true).then(function (ok) {
+            if (!ok) return;
+            App.busy(b, true);
+            App.api('apiRevertMeal', date, t).then(function (res) {
+              if (!res.ok) throw new Error(res.error);
+              App.toast('NEIS 데이터로 되돌렸습니다 (' + res.inserted + '개 메뉴)' + (res.error ? ' — ' + res.error : ''), 'ok'); reload();
+            }).catch(function (err) { App.toast(err.message, 'danger'); App.busy(b, false); });
+          });
+        }
+      });
+    });
+  },
+};
+
+/** 메뉴 추가/수정 모달. m = { _row?, date, mealType, name?, codes?, checkedNone? } */
+App.menuEditor = function (m, onSaved) {
+  var h = App.h;
+  var allergens = App.state.boot.allergens;
+  var codes = m.codes || [];
+  var body =
+    '<div class="form-grid">' +
+    '<div class="field"><label>날짜</label><input type="date" id="me-date" value="' + h(m.date) + '"></div>' +
+    '<div class="field"><label>식사구분</label><select id="me-type">' + App.state.boot.allMealTypes.map(function (t) { return '<option' + (t === m.mealType ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select></div>' +
+    '<div class="field full"><label>메뉴명</label><input type="text" id="me-name" value="' + h(m.name || '') + '" placeholder="예: 돈까스" autofocus></div>' +
+    '<div class="field full"><label>알레르기 유발식품 (해당 항목 체크)</label><div class="codes-grid">' +
+    Object.keys(allergens).map(function (c) { return '<label class="check"><input type="checkbox" value="' + c + '"' + (codes.indexOf(Number(c)) >= 0 ? ' checked' : '') + '> ' + c + '. ' + h(allergens[c]) + '</label>'; }).join('') +
+    '</div></div>' +
+    '<div class="field full"><label class="check"><input type="checkbox" id="me-none"' + (m.checkedNone ? ' checked' : '') + '> 알레르기 유발식품 없음을 확인함 (체크하면 "확인 필요" 표시가 사라집니다)</label></div>' +
+    '</div><div id="me-err" class="error-text" style="margin-top:8px"></div>';
+  App.modal({
+    title: m._row ? '메뉴 수정' : '메뉴 추가', body: body,
+    footer: '<span class="left small muted">저장하면 이 끼니는 수동 보호되어 자동 동기화가 덮어쓰지 않습니다</span><button class="btn" data-close>취소</button><button class="btn primary" id="me-save">저장</button>',
+    onMount: function (el, api) {
+      App.$('#me-save', el).addEventListener('click', function () {
+        var btn = this;
+        var sel = App.$$('.codes-grid input:checked', el).map(function (i) { return Number(i.value); });
+        var payload = { _row: m._row || null, date: App.$('#me-date', el).value, mealType: App.$('#me-type', el).value, name: App.$('#me-name', el).value.trim(), codes: sel, checkedNone: App.$('#me-none', el).checked };
+        if (!payload.name) { App.$('#me-err', el).textContent = '메뉴명을 입력하세요'; return; }
+        App.busy(btn, true);
+        App.api('apiSaveMenu', payload).then(function () { App.toast('저장했습니다', 'ok'); api.close(); if (onSaved) onSaved(); })
+          .catch(function (e) { App.$('#me-err', el).textContent = e.message; App.busy(btn, false); });
+      });
+    },
+  });
+};
+</script>

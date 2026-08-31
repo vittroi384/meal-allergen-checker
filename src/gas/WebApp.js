@@ -1,5 +1,6 @@
 /**
- * 웹앱 진입점. (5단계에서 SPA 셸로 교체 — 지금은 배포 확인용 최소 페이지)
+ * 웹앱 진입점 + 공통 API (부트스트랩, 대시보드, 달력, 날짜 상세, 로그, 인쇄).
+ * 모든 api* 는 첫 인자 token, 첫 줄 requireSession(token). 예외: apiLogin/apiCheckSession/apiLogout.
  */
 
 function doGet(e) {
@@ -10,19 +11,193 @@ function doGet(e) {
       writeSettings({ '웹앱URL': url });
     }
   } catch (err) { /* 무시 */ }
-
-  var ready = isPasswordSet_();
-  var html = '<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
-    '<title>급식 알레르기 판별</title>' +
-    '<style>body{font-family:-apple-system,"Malgun Gothic",sans-serif;background:#f9fafb;color:#111827;margin:0;display:flex;min-height:100vh;align-items:center;justify-content:center}' +
-    '.card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:28px 32px;max-width:440px;box-shadow:0 1px 3px rgba(0,0,0,.06)}h1{font-size:20px;margin:0 0 12px}p{line-height:1.6;margin:0 0 8px;font-size:14px}.ok{color:#059669}.warn{color:#b45309}</style></head><body>' +
-    '<div class="card"><h1>급식 알레르기 판별 시스템</h1>' +
-    (ready
-      ? '<p class="ok">✔ 웹앱 배포가 정상입니다.</p><p>화면(UI)은 다음 단계에서 배포됩니다. 이 URL 은 그대로 유지됩니다.</p>'
-      : '<p class="warn">아직 초기 설정이 실행되지 않았습니다.</p><p>스프레드시트에서 메뉴 <b>[급식 알레르기] → 초기 설정</b>을 먼저 실행하세요.</p>') +
-    '</div></body></html>';
-  return HtmlService.createHtmlOutput(html)
+  var t = HtmlService.createTemplateFromFile('ui/index');
+  t.schoolName = '';
+  try { t.schoolName = readSettings()['학교명'] || ''; } catch (err) { /* 초기 설정 전 */ }
+  return t.evaluate()
     .setTitle('급식 알레르기 판별')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
+}
+
+/** 템플릿에서 <?!= include('ui/styles.css') ?> */
+function include(name) {
+  return HtmlService.createHtmlOutputFromFile(name).getContent();
+}
+
+// ---------- 직렬화 (google.script.run 은 plain 객체만) ----------
+
+function serializeStudent_(s) {
+  return {
+    _row: s._row || null, schoolYear: s.schoolYear, grade: s.grade, classNo: s.classNo, number: s.number, name: s.name,
+    label: formatStudentLabel(s), codes: s.codes, codeNames: allergenNames(s.codes), keywords: s.keywords, note: s.note,
+    parentEmail: s.parentEmail, parentPhone: s.parentPhone, parentNotify: s.parentNotify, active: s.active !== false,
+  };
+}
+
+function serializeMenu_(m) {
+  return {
+    _row: m._row || null, date: m.date, mealType: m.mealType, name: m.name, codes: m.codes, codeNames: allergenNames(m.codes),
+    needsCheck: m.needsCheck, checkedNone: m.checkedNone, source: m.source, manualEdited: m.manualEdited, raw: m.raw,
+  };
+}
+
+function serializeMealResult_(r) {
+  return {
+    menus: r.menus.map(serializeMenu_),
+    affected: r.affected.map(function (a) {
+      return {
+        student: serializeStudent_(a.student),
+        items: a.items.map(function (it) {
+          return { menu: it.menu.name, menuRow: it.menu._row || null, matchedCodes: it.matchedCodes, matchedKeywords: it.matchedKeywords,
+            reasons: allergenNames(it.matchedCodes).concat(it.matchedKeywords), text: formatAffectedItem(it) };
+        }),
+        text: a.items.map(formatAffectedItem).join(', '),
+      };
+    }),
+    uncheckedMenus: r.uncheckedMenus,
+    count: r.affected.length,
+    protected: r.menus.some(function (m) { return m.manualEdited || m.source === SOURCES.MANUAL; }),
+  };
+}
+
+function publicSettings_(settings) {
+  var out = {};
+  SETTING_KEYS.forEach(function (k) {
+    out[k] = SETTING_BOOL_KEYS.indexOf(k) >= 0 ? toBool(settings[k], false) : String(settings[k] === undefined ? '' : settings[k]);
+  });
+  return out;
+}
+
+// ---------- 부트스트랩 ----------
+
+function apiBootstrap(token) {
+  requireSession(token);
+  var settings = readSettings();
+  return {
+    today: todayStr_(),
+    schoolYear: currentSchoolYear_(settings),
+    settings: publicSettings_(settings),
+    secretStatus: getSecretStatus(),
+    channels: channelStatus_(settings),
+    mealTypes: managedMealTypes_(settings),
+    allMealTypes: MEAL_TYPES,
+    allergens: ALLERGENS,
+    webAppUrl: getState('WEBAPP_URL') || settings['웹앱URL'] || '',
+    lastSync: lastSyncInfo_(),
+    triggers: listOurTriggers_(),
+    emailQuota: MailApp.getRemainingDailyQuota(),
+  };
+}
+
+// ---------- 대시보드 ----------
+
+function apiDashboard(token) {
+  requireSession(token);
+  var settings = readSettings();
+  var today = todayStr_();
+  var mealTypes = managedMealTypes_(settings);
+  var allStudents = readStudents_();
+  var students = filterActiveStudents(allStudents, currentSchoolYear_(settings));
+  var meals = readMeals_();
+
+  var todayByType = {};
+  mealTypes.forEach(function (t) {
+    todayByType[t] = serializeMealResult_(checkMeal(students, meals.filter(function (m) { return m.date === today && m.mealType === t; })));
+  });
+
+  var wr = weekRange(today);
+  var weekMeals = meals.filter(function (m) { return m.date >= wr.start && m.date <= wr.end && mealTypes.indexOf(m.mealType) >= 0; });
+  var summaryByDate = {};
+  summarizePeriod(checkPeriod(students, weekMeals, mealTypes)).forEach(function (s) { summaryByDate[s.date] = s; });
+  var week = eachDay(wr.start, wr.end).map(function (d) {
+    var s = summaryByDate[d];
+    return { date: d, label: formatKoreanDate(d), isToday: d === today, hasMeals: !!s,
+      affectedCount: s ? s.affectedCount : 0, uncheckedCount: s ? s.uncheckedCount : 0, manualProtected: s ? s.manualProtected : false };
+  });
+
+  var ym = yearMonthOf(today);
+  var monthUnchecked = meals.filter(function (m) { return m.date.slice(0, 7) === ym && m.needsCheck && mealTypes.indexOf(m.mealType) >= 0; }).length;
+  var failures = readLogs_(100).filter(function (l) { return l.ok !== true && l.ok !== 'TRUE'; }).slice(0, 5)
+    .map(function (l) { return { sentAt: String(l.sentAt), kind: l.kind, channel: l.channel, error: l.error, summary: l.summary }; });
+
+  return {
+    today: today, todayLabel: formatKoreanDateLong(today), mealTypes: mealTypes, todayByType: todayByType, week: week,
+    monthUnchecked: monthUnchecked, failures: failures, lastSync: lastSyncInfo_(),
+    studentCount: allStudents.length, activeStudentCount: students.length,
+    schoolConfigured: !!(settings['학교코드'] && hasSecret('NEIS_API_KEY')),
+  };
+}
+
+// ---------- 달력 / 날짜 ----------
+
+function apiMonth(token, ym) {
+  requireSession(token);
+  var settings = readSettings();
+  var mealTypes = managedMealTypes_(settings);
+  var range = monthRange(ym);
+  var students = readActiveStudents_(settings);
+  var meals = readMealsInRange_(range.start, range.end, mealTypes);
+  var days = summarizePeriod(checkPeriod(students, meals, mealTypes));
+  return { ym: ym, start: range.start, end: range.end, days: days, mealTypes: mealTypes };
+}
+
+function apiDay(token, date) {
+  requireSession(token);
+  if (!isValidDateStr(date)) throw new Error('날짜 형식 오류');
+  var settings = readSettings();
+  var mealTypes = managedMealTypes_(settings);
+  var students = readActiveStudents_(settings);
+  var meals = readMealsInRange_(date, date, MEAL_TYPES);
+  var byType = {};
+  mealTypes.forEach(function (t) {
+    byType[t] = serializeMealResult_(checkMeal(students, meals.filter(function (m) { return m.mealType === t; })));
+  });
+  return { date: date, label: formatKoreanDateLong(date), mealTypes: mealTypes, byType: byType };
+}
+
+// ---------- 로그 ----------
+
+function apiLogs(token, opts) {
+  requireSession(token);
+  var o = opts || {};
+  var rows = readLogs_(o.limit || 200);
+  if (o.failedOnly) rows = rows.filter(function (l) { return l.ok !== true && l.ok !== 'TRUE'; });
+  return rows.map(function (l) {
+    return { sentAt: String(l.sentAt), channel: l.channel, kind: l.kind, recipient: l.recipient, targetDate: String(l.targetDate),
+      summary: l.summary, ok: l.ok === true || l.ok === 'TRUE', error: l.error };
+  });
+}
+
+// ---------- 인쇄용 (반별) ----------
+
+/** @returns { start, end, classes: [{ grade, classNo, key, rows: [{date, label, mealType, student, text}] }] } */
+function apiPrintData(token, params) {
+  requireSession(token);
+  var p = params || {};
+  var start = p.start, end = p.end;
+  if (!isValidDateStr(start) || !isValidDateStr(end) || start > end) throw new Error('기간이 올바르지 않습니다');
+  if (eachDay(start, end).length > 62) throw new Error('기간은 최대 2개월까지 가능합니다');
+  var settings = readSettings();
+  var mealTypes = managedMealTypes_(settings);
+  var students = readActiveStudents_(settings);
+  var period = checkPeriod(students, readMealsInRange_(start, end, mealTypes), mealTypes);
+  var byClass = {};
+  Object.keys(period).forEach(function (date) {
+    Object.keys(period[date]).forEach(function (t) {
+      period[date][t].affected.forEach(function (a) {
+        var st = a.student;
+        if (p.grade && Number(p.grade) !== st.grade) return;
+        if (p.classNo && Number(p.classNo) !== st.classNo) return;
+        var key = st.grade + '-' + st.classNo;
+        if (!byClass[key]) byClass[key] = { grade: st.grade, classNo: st.classNo, key: key, rows: [] };
+        byClass[key].rows.push({ date: date, label: formatKoreanDate(date), mealType: t, student: formatStudentLabel(st), number: st.number,
+          name: st.name, text: a.items.map(formatAffectedItem).join(', ') });
+      });
+    });
+  });
+  var classes = Object.keys(byClass).map(function (k) { return byClass[k]; })
+    .sort(function (a, b) { return (a.grade - b.grade) || (a.classNo - b.classNo); });
+  classes.forEach(function (c) { c.rows.sort(function (a, b) { return a.date.localeCompare(b.date) || (a.number - b.number); }); });
+  return { start: start, end: end, schoolName: settings['학교명'] || '', classes: classes };
 }

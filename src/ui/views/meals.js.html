@@ -1,0 +1,124 @@
+<script>
+/* 급식 관리: 월 선택, 동기화, 확인 필요 메뉴, 수동 보호 끼니, xlsx 내보내기/가져오기 */
+App.views.meals = {
+  title: '급식 관리',
+  render: function (el, r) {
+    var h = App.h;
+    var self = this;
+    var ym = (r.params && /^\d{4}-\d{2}$/.test(r.params.ym)) ? r.params.ym : (self._ym || App.today().slice(0, 7));
+    self._ym = ym;
+    return App.api('apiMealsOverview', ym).then(function (o) {
+      var boot = App.state.boot;
+      var p = ym.split('-');
+      var configured = boot.secretStatus.NEIS_API_KEY && boot.settings['학교코드'];
+      el.innerHTML =
+        '<div class="page-head"><div><h2>급식 관리</h2><div class="sub">' + (boot.settings['학교명'] ? h(boot.settings['학교명']) + ' · ' : '') + '관리 끼니 ' + boot.mealTypes.join(', ') + (o.lastSync ? ' · 마지막 동기화 ' + h(o.lastSync.at || '') + (o.lastSync.ok ? ' 성공' : ' <span class="error-text">실패</span>') : '') + '</div></div>' +
+        '<div class="actions"><input type="month" id="ym" value="' + ym + '" style="width:auto"><a class="btn" href="#/calendar/' + ym + '">달력에서 보기</a></div></div>' +
+        (!configured ? '<div class="notice warn" style="margin-bottom:16px">NEIS 인증키와 학교가 설정되어야 자동 동기화가 됩니다. <a href="#/settings">설정으로 이동</a></div>' : '') +
+        '<div class="grid cols-3" style="margin-bottom:16px">' +
+        '<div class="card stat"><span class="label">' + Number(p[1]) + '월 급식일</span><span class="value">' + o.dayCount + '<span style="font-size:14px;color:var(--muted);font-weight:600"> 일</span></span><span class="hint">메뉴 ' + o.menuCount + '개</span></div>' +
+        '<div class="card stat"><span class="label">확인 필요 메뉴</span><span class="value ' + (o.unchecked.length ? 'warn' : 'ok') + '">' + o.unchecked.length + '</span><span class="hint">알레르기 표시 없음</span></div>' +
+        '<div class="card stat"><span class="label">수동 보호 끼니</span><span class="value" style="color:var(--purple)">' + o.protectedMeals.length + '</span><span class="hint">동기화가 건너뛰는 끼니</span></div></div>' +
+
+        '<div class="card"><div class="card-head"><h3>NEIS 동기화</h3></div><div class="inline">' +
+        '<button class="btn primary" id="sync-this"' + (configured ? '' : ' disabled') + '>' + Number(p[1]) + '월 동기화</button>' +
+        '<button class="btn" id="sync-two"' + (configured ? '' : ' disabled') + '>이번 달 + 다음 달</button>' +
+        '<span class="small muted">매일 새벽 3시 이번 달 재동기화, 매월 1일 새벽 4시 이번 달+다음 달 자동 실행 (±15분). 수동 수정한 끼니는 덮어쓰지 않습니다.</span></div>' +
+        '<div id="sync-result" style="margin-top:10px"></div></div>' +
+
+        '<div class="card"><div class="card-head"><h3>확인 필요 메뉴 <span class="badge warn">' + o.unchecked.length + '</span></h3></div>' +
+        (o.unchecked.length ? '<p class="small muted" style="margin-bottom:8px">NEIS 에 알레르기 번호가 없는 메뉴입니다. 실제로 유발식품이 없으면 "확인함", 있으면 "수정"으로 코드를 입력하세요.</p><div class="table-wrap" style="max-height:360px;overflow:auto"><table><thead><tr><th>날짜</th><th>끼니</th><th>메뉴</th><th></th></tr></thead><tbody>' +
+          o.unchecked.map(function (m) { return '<tr><td class="nowrap"><a href="#/day/' + m.date + '">' + App.fmtDate(m.date) + '</a></td><td>' + h(m.mealType) + '</td><td>' + h(m.name) + '</td><td class="nowrap"><button class="btn sm" data-check="' + m._row + '">확인함</button> <button class="btn sm ghost" data-edit="' + m._row + '">수정</button></td></tr>'; }).join('') +
+          '</tbody></table></div>' : '<div class="empty">이 달에는 확인 필요 메뉴가 없습니다 ✅</div>') + '</div>' +
+
+        '<div class="card"><div class="card-head"><h3>수동 보호 끼니 <span class="badge purple">' + o.protectedMeals.length + '</span></h3></div>' +
+        (o.protectedMeals.length ? '<p class="small muted" style="margin-bottom:8px">직접 추가/수정/삭제/확인 처리한 끼니입니다. NEIS 원본으로 돌리려면 되돌리기를 누르세요.</p><div class="table-wrap"><table><thead><tr><th>날짜</th><th>끼니</th><th></th></tr></thead><tbody>' +
+          o.protectedMeals.map(function (m) { return '<tr><td class="nowrap"><a href="#/day/' + m.date + '">' + h(m.label) + '</a></td><td>' + h(m.mealType) + '</td><td class="nowrap"><button class="btn sm danger" data-revert-date="' + m.date + '" data-revert-type="' + h(m.mealType) + '">NEIS 데이터로 되돌리기</button></td></tr>'; }).join('') +
+          '</tbody></table></div>' : '<div class="empty">수동 보호된 끼니가 없습니다</div>') + '</div>' +
+
+        '<div class="card"><div class="card-head"><h3>엑셀 내보내기 / 가져오기</h3></div><div class="grid cols-2">' +
+        '<div><div class="small muted" style="font-weight:700;margin-bottom:6px">내보내기</div><div class="inline"><button class="btn" id="dl-meals">' + Number(p[1]) + '월 급식 데이터 xlsx</button><button class="btn" id="dl-result">' + Number(p[1]) + '월 해당 학생 결과 xlsx</button></div></div>' +
+        '<div><div class="small muted" style="font-weight:700;margin-bottom:6px">가져오기 (월 단위)</div><div class="inline"><button class="btn" id="import">xlsx 로 ' + Number(p[1]) + '월 급식 가져오기</button></div><div class="small muted" style="margin-top:4px">"급식 데이터 xlsx" 형식(날짜·식사구분·메뉴명·알레르기코드). 파일에 있는 날짜·끼니만 대체되고 수동 보호됩니다.</div></div>' +
+        '</div></div>' +
+
+        (o.months.length ? '<div class="card"><div class="card-head"><h3>데이터가 있는 달</h3></div><div class="inline">' + o.months.map(function (m) { return '<a class="btn sm' + (m.ym === ym ? ' primary' : '') + '" href="#/meals?ym=' + m.ym + '">' + m.ym + ' <span class="small" style="opacity:.7">(' + m.count + ')</span></a>'; }).join('') + '</div></div>' : '');
+
+      var reload = function () { return self.render(el, { params: { ym: ym } }); };
+      App.$('#ym').onchange = function (e) { if (e.target.value) App.go('meals?ym=' + e.target.value); };
+      function sync(months, btn) {
+        App.busy(btn, true);
+        App.$('#sync-result').innerHTML = '<div class="loading" style="padding:8px"><span class="spinner"></span> NEIS 에서 가져오는 중… (최대 1분)</div>';
+        App.api('apiSyncMonths', months).then(function (res) {
+          var s = res.stats;
+          App.$('#sync-result').innerHTML = res.ok
+            ? '<div class="notice ok">동기화 완료 (' + res.months.join(', ') + ') — 끼니 ' + s.mealsFetched + '개: 신규 ' + s.mealsInserted + ', 변경 ' + s.mealsReplaced + ', 동일 ' + s.mealsUnchanged + ', 삭제 ' + s.mealsRemoved + ', 수동 보호 ' + s.mealsProtected + (res.uncheckedCount ? ' · 확인 필요 메뉴 ' + res.uncheckedCount + '개' : '') + '</div>'
+            : '<div class="notice danger">동기화 실패: ' + h(res.error) + '</div>';
+          App.busy(btn, false);
+          if (res.ok) setTimeout(reload, 1200);
+        }).catch(function (e) { App.$('#sync-result').innerHTML = '<div class="notice danger">' + h(e.message) + '</div>'; App.busy(btn, false); });
+      }
+      App.$('#sync-this').onclick = function () { sync([ym], this); };
+      App.$('#sync-two').onclick = function () { var t = App.today().slice(0, 7); sync([t, App.addMonths(t, 1)], this); };
+      App.$('#dl-meals').onclick = function (e) { App.downloadXlsx('meals', { ym: ym }, e.currentTarget); };
+      App.$('#dl-result').onclick = function (e) { App.downloadXlsx('month', { ym: ym }, e.currentTarget); };
+      App.$('#import').onclick = function () { App.mealImport(ym, reload); };
+      var uncheckedByRow = {};
+      o.unchecked.forEach(function (m) { uncheckedByRow[m._row] = m; });
+      el.addEventListener('click', function (e) {
+        var b = e.target.closest('button');
+        if (!b) return;
+        if (b.dataset.check) { App.busy(b, true); App.api('apiMarkMenuChecked', Number(b.dataset.check), true).then(function () { App.toast('확인 처리했습니다', 'ok'); reload(); }).catch(function (err) { App.toast(err.message, 'danger'); App.busy(b, false); }); }
+        if (b.dataset.edit) App.menuEditor(uncheckedByRow[b.dataset.edit], reload);
+        if (b.dataset.revertDate) {
+          App.confirm('NEIS 데이터로 되돌리기', b.dataset.revertDate + ' ' + b.dataset.revertType + '의 모든 메뉴를 삭제하고 NEIS 원본으로 다시 채웁니다. 계속할까요?', '되돌리기', true).then(function (ok) {
+            if (!ok) return;
+            App.busy(b, true);
+            App.api('apiRevertMeal', b.dataset.revertDate, b.dataset.revertType).then(function (res) { if (!res.ok) throw new Error(res.error); App.toast('되돌렸습니다 (' + res.inserted + '개 메뉴)', 'ok'); reload(); }).catch(function (err) { App.toast(err.message, 'danger'); App.busy(b, false); });
+          });
+        }
+      });
+    });
+  },
+};
+
+/** 급식 월 xlsx 가져오기 모달 */
+App.mealImport = function (ym, onDone) {
+  var h = App.h;
+  var rawRows = null, ok = false;
+  App.modal({
+    title: ym + ' 급식 xlsx 가져오기', wide: true,
+    body: '<label class="dropzone" id="dz"><input type="file" id="file" accept=".xlsx"><div>📄 .xlsx 파일 선택 (첫 행: 날짜, 식사구분, 메뉴명, 알레르기코드 …)</div></label><div id="fname" class="small muted" style="margin-top:6px"></div><div id="preview" style="margin-top:12px"></div><div id="err" class="error-text" style="margin-top:8px"></div>',
+    footer: '<span class="left small muted">파일에 있는 (날짜, 끼니)만 기존 데이터를 대체합니다. 가져온 끼니는 수동 보호됩니다.</span><button class="btn" data-close>닫기</button><button class="btn" id="prev">미리보기</button><button class="btn primary" id="apply" disabled>반영</button>',
+    onMount: function (el, api) {
+      var file = null;
+      App.$('#file', el).onchange = function () { file = this.files[0]; App.$('#fname', el).textContent = file ? file.name : ''; };
+      App.$('#prev', el).onclick = function () {
+        var btn = this; App.$('#err', el).textContent = '';
+        if (!file) { App.$('#err', el).textContent = '파일을 선택하세요'; return; }
+        App.busy(btn, true);
+        App.readFileBase64(file).then(function (b64) { return App.api('apiPreviewMealImport', { base64: b64, filename: file.name, ym: ym }); }).then(function (r) {
+          rawRows = r.rawRows; ok = r.ok;
+          App.$('#preview', el).innerHTML =
+            '<div class="inline" style="margin-bottom:8px"><span class="badge blue">행 ' + r.rows.length + '</span><span class="badge purple">대체될 끼니 ' + r.replacedMeals.length + '</span><span class="badge danger">오류 ' + r.errorCount + '</span></div>' +
+            (r.ok ? '<div class="notice ok small" style="margin-bottom:8px">오류 없음. 대체될 끼니: ' + h(r.replacedMeals.map(function (k) { return k.replace('|', ' '); }).join(', ')) + '</div>' : '<div class="notice danger small" style="margin-bottom:8px">오류 행이 있어 반영할 수 없습니다.</div>') +
+            '<div class="table-wrap" style="max-height:340px;overflow:auto"><table><thead><tr><th>행</th><th>날짜</th><th>끼니</th><th>메뉴명</th><th>알레르기</th><th>오류</th></tr></thead><tbody>' +
+            r.rows.map(function (x) { return '<tr class="' + (x.errors.length ? 'row-error' : '') + '"><td>' + x._row + '</td><td class="nowrap">' + h(x.menu.date) + '</td><td>' + h(x.menu.mealType) + '</td><td>' + h(x.menu.name) + '</td><td>' + (x.menu.checkedNone ? '<span class="badge gray">없음 확인</span>' : App.codeTags(x.menu.codes)) + '</td><td class="error-text">' + h(x.errors.join('; ')) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+          App.$('#apply', el).disabled = !r.ok;
+        }).catch(function (e) { App.$('#err', el).textContent = e.message; }).then(function () { App.busy(btn, false); });
+      };
+      App.$('#apply', el).onclick = function () {
+        var btn = this;
+        if (!ok) return;
+        App.confirm('급식 가져오기', '파일에 있는 날짜·끼니의 기존 메뉴를 삭제하고 파일 내용으로 대체합니다. 계속할까요?', '반영', true).then(function (yes) {
+          if (!yes) return;
+          App.busy(btn, true);
+          App.api('apiApplyMealImport', { rawRows: rawRows, ym: ym }).then(function (r) {
+            if (!r.ok) throw new Error(r.error);
+            App.toast('가져오기 완료: 끼니 ' + r.replacedMeals + '개, 메뉴 ' + r.inserted + '개', 'ok'); api.close(); if (onDone) onDone();
+          }).catch(function (e) { App.$('#err', el).textContent = e.message; App.busy(btn, false); });
+        });
+      };
+    },
+  });
+};
+</script>

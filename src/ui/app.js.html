@@ -1,0 +1,196 @@
+<script>
+/**
+ * 앱 코어: API 래퍼(세션 토큰 자동 첨부), 해시 라우터, 레이아웃, 모달/토스트, 공통 헬퍼.
+ * 화면은 App.views[name] = { title, render(el, params) } 로 등록한다.
+ */
+var App = (function () {
+  var TOKEN_KEY = 'mac_token';
+  var state = { token: null, boot: null, route: { name: 'dashboard', params: {} } };
+  var views = {};
+  var NAV = [
+    ['dashboard', '대시보드'], ['calendar', '달력'], ['students', '학생'], ['meals', '급식'], ['settings', '설정'], ['logs', '알림 로그'], ['print', '인쇄'],
+  ];
+
+  // ---------- 헬퍼 ----------
+  function h(s) { return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function $(sel, root) { return (root || document).querySelector(sel); }
+  function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function pad(n) { return String(n).padStart(2, '0'); }
+  var DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+  function dow(d) { var p = d.split('-').map(Number); return new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay(); }
+  function fmtDate(d) { if (!d) return ''; var p = d.split('-').map(Number); return p[1] + '/' + p[2] + '(' + DAYS[dow(d)] + ')'; }
+  function fmtDateLong(d) { var p = d.split('-').map(Number); return p[0] + '년 ' + p[1] + '월 ' + p[2] + '일 (' + DAYS[dow(d)] + ')'; }
+  function addDays(d, n) { var p = d.split('-').map(Number); var t = new Date(Date.UTC(p[0], p[1] - 1, p[2] + n)); return t.getUTCFullYear() + '-' + pad(t.getUTCMonth() + 1) + '-' + pad(t.getUTCDate()); }
+  function addMonths(ym, n) { var p = ym.split('-').map(Number); var t = new Date(Date.UTC(p[0], p[1] - 1 + n, 1)); return t.getUTCFullYear() + '-' + pad(t.getUTCMonth() + 1); }
+  function today() { return state.boot ? state.boot.today : new Date().toISOString().slice(0, 10); }
+  function allergenName(c) { return (state.boot && state.boot.allergens[c]) || String(c); }
+  function codeTags(codes, hits) {
+    return (codes || []).map(function (c) { return '<span class="tag' + (hits && hits.indexOf(c) >= 0 ? ' hit' : '') + '">' + h(allergenName(c)) + '(' + c + ')</span>'; }).join('');
+  }
+  function menuBadges(m) {
+    var out = '';
+    if (m.needsCheck) out += '<span class="badge warn">확인 필요</span>';
+    if (m.checkedNone) out += '<span class="badge gray">없음 확인</span>';
+    if (m.manualEdited || m.source === '수동') out += '<span class="badge purple">수동</span>';
+    return out;
+  }
+
+  // ---------- 토스트 / 모달 ----------
+  function toast(msg, type) {
+    var el = document.createElement('div');
+    el.className = 'toast ' + (type || '');
+    el.textContent = msg;
+    $('#toast-root').appendChild(el);
+    setTimeout(function () { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(function () { el.remove(); }, 300); }, type === 'danger' ? 5000 : 2800);
+  }
+  var modalStack = [];
+  function modal(opts) {
+    var root = $('#modal-root');
+    var wrap = document.createElement('div');
+    wrap.className = 'modal-backdrop';
+    wrap.innerHTML =
+      '<div class="modal ' + (opts.wide ? 'wide' : '') + '" role="dialog">' +
+      '<div class="modal-head"><h3>' + h(opts.title || '') + '</h3><button class="btn icon ghost" data-close aria-label="닫기">✕</button></div>' +
+      '<div class="modal-body">' + (opts.body || '') + '</div>' +
+      (opts.footer !== false ? '<div class="modal-foot">' + (opts.footer || '<button class="btn" data-close>닫기</button>') + '</div>' : '') +
+      '</div>';
+    root.appendChild(wrap);
+    modalStack.push(wrap);
+    var api = { el: wrap, close: function () { wrap.remove(); modalStack = modalStack.filter(function (m) { return m !== wrap; }); if (opts.onClose) opts.onClose(); } };
+    wrap.addEventListener('click', function (e) { if (e.target === wrap || e.target.closest('[data-close]')) api.close(); });
+    if (opts.onMount) opts.onMount(wrap, api);
+    return api;
+  }
+  function confirmDialog(title, text, okLabel, danger) {
+    return new Promise(function (resolve) {
+      var m = modal({ title: title, body: '<p style="white-space:pre-wrap">' + h(text) + '</p>',
+        footer: '<button class="btn" data-close>취소</button><button class="btn ' + (danger ? 'danger' : 'primary') + '" data-ok>' + h(okLabel || '확인') + '</button>',
+        onClose: function () { resolve(false); } });
+      $('[data-ok]', m.el).addEventListener('click', function () { resolve(true); m.el.remove(); });
+    });
+  }
+
+  // ---------- API ----------
+  function api(name) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      var runner = google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(function (err) {
+          var msg = err && err.message ? err.message : String(err);
+          if (/AUTH_REQUIRED/.test(msg)) { setToken(null); renderLogin('세션이 만료되었습니다. 다시 로그인하세요.'); reject(new Error('AUTH_REQUIRED')); return; }
+          msg = msg.replace(/^(Error|Exception):\s*/, '');
+          reject(new Error(msg));
+        });
+      runner[name].apply(runner, [state.token].concat(args));
+    });
+  }
+  function apiNoAuth(name) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      var runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(function (err) { reject(new Error(err && err.message ? err.message : String(err))); });
+      runner[name].apply(runner, args);
+    });
+  }
+  function setToken(t) { state.token = t; try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch (e) {} }
+  function loadToken() { try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; } }
+  function busy(btn, on) { if (!btn) return; btn.disabled = on; if (on) { btn.dataset.label = btn.innerHTML; btn.innerHTML = '<span class="spinner"></span> ' + btn.dataset.label; } else if (btn.dataset.label) { btn.innerHTML = btn.dataset.label; } }
+  function download(res) {
+    var bin = atob(res.base64), arr = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    var blob = new Blob([arr], { type: res.mime || 'application/octet-stream' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = res.filename; a.style.display = 'none';
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 2000);
+  }
+  function downloadXlsx(kind, params, btn) {
+    busy(btn, true);
+    return api('apiDownloadXlsx', kind, params || {}).then(function (r) { download(r); toast(r.filename + ' 다운로드', 'ok'); })
+      .catch(function (e) { toast('다운로드 실패: ' + e.message, 'danger'); }).then(function () { busy(btn, false); });
+  }
+  function readFileBase64(file) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onload = function () { resolve(String(fr.result).split(',')[1]); };
+      fr.onerror = function () { reject(new Error('파일을 읽지 못했습니다')); };
+      fr.readAsDataURL(file);
+    });
+  }
+
+  // ---------- 라우터 / 레이아웃 ----------
+  function parseHash() {
+    var hash = location.hash.replace(/^#\/?/, '');
+    var parts = hash.split('?');
+    var seg = parts[0].split('/').filter(Boolean);
+    var params = {};
+    (parts[1] || '').split('&').forEach(function (kv) { if (!kv) return; var p = kv.split('='); params[decodeURIComponent(p[0])] = decodeURIComponent(p[1] || ''); });
+    return { name: seg[0] || 'dashboard', arg: seg[1] || '', params: params };
+  }
+  function go(path) { location.hash = '#/' + path; }
+  function renderLayout() {
+    var app = $('#app');
+    var school = (state.boot && state.boot.settings['학교명']) || app.dataset.school || '';
+    app.innerHTML =
+      '<header class="topbar"><div class="topbar-inner">' +
+      '<a class="brand" href="#/dashboard"><span class="logo">🍱</span><span>급식 알레르기</span>' + (school ? '<span class="school">' + h(school) + '</span>' : '') + '</a>' +
+      '<nav class="nav">' + NAV.map(function (n) { return '<a href="#/' + n[0] + '" data-nav="' + n[0] + '">' + n[1] + '</a>'; }).join('') + '</nav>' +
+      '<button class="btn sm ghost no-print" id="logout-btn">로그아웃</button>' +
+      '</div></header><main class="main" id="main"></main>';
+    $('#logout-btn').addEventListener('click', function () { api('apiLogout').catch(function () {}); setToken(null); renderLogin(); });
+  }
+  function renderRoute() {
+    if (!state.token || !state.boot) return;
+    if (!$('#main')) renderLayout();
+    var r = parseHash();
+    state.route = r;
+    $$('[data-nav]').forEach(function (a) { a.classList.toggle('active', a.dataset.nav === r.name); });
+    var view = views[r.name] || views.dashboard;
+    var main = $('#main');
+    main.innerHTML = '<div class="loading"><span class="spinner"></span> 불러오는 중…</div>';
+    document.title = (view.title || '') + ' · 급식 알레르기 판별';
+    Promise.resolve(view.render(main, r)).catch(function (e) {
+      if (e.message === 'AUTH_REQUIRED') return;
+      main.innerHTML = '<div class="card"><div class="notice danger">화면을 불러오지 못했습니다: ' + h(e.message) + '</div></div>';
+    });
+  }
+  function renderLogin(message) {
+    $('#app').innerHTML =
+      '<div class="login-wrap"><div class="card login-card">' +
+      '<h1>🍱 급식 알레르기 판별</h1><p class="sub">접속 비밀번호를 입력하세요</p>' +
+      (message ? '<div class="notice warn" style="margin-bottom:12px">' + h(message) + '</div>' : '') +
+      '<form id="login-form"><div class="field"><input type="password" id="pw" placeholder="비밀번호" autocomplete="current-password" autofocus></div>' +
+      '<div id="login-err" class="error-text" style="margin:8px 0;min-height:18px"></div>' +
+      '<button class="btn primary" style="width:100%;justify-content:center" id="login-btn">로그인</button></form>' +
+      '<p class="small muted" style="margin-top:14px">비밀번호는 스프레드시트 메뉴 [급식 알레르기] → 접속 비밀번호 재설정으로 다시 만들 수 있습니다.</p>' +
+      '</div></div>';
+    $('#login-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var btn = $('#login-btn'); busy(btn, true); $('#login-err').textContent = '';
+      apiNoAuth('apiLogin', $('#pw').value).then(function (r) {
+        if (!r.ok) { $('#login-err').textContent = r.error; busy(btn, false); return; }
+        setToken(r.token);
+        return boot();
+      }).catch(function (e) { $('#login-err').textContent = e.message; busy(btn, false); });
+    });
+  }
+  function boot() {
+    return api('apiBootstrap').then(function (b) { state.boot = b; renderLayout(); renderRoute(); })
+      .catch(function (e) { if (e.message !== 'AUTH_REQUIRED') { setToken(null); renderLogin(e.message); } });
+  }
+  function refreshBoot() { return api('apiBootstrap').then(function (b) { state.boot = b; return b; }); }
+  function start() {
+    window.addEventListener('hashchange', renderRoute);
+    var t = loadToken();
+    if (!t) { renderLogin(); return; }
+    state.token = t;
+    $('#app').innerHTML = '<div class="loading"><span class="spinner"></span> 불러오는 중…</div>';
+    apiNoAuth('apiCheckSession', t).then(function (r) { if (r.ok) return boot(); setToken(null); renderLogin(); });
+  }
+
+  return { start: start, api: api, views: views, state: state, h: h, $: $, $$: $$, toast: toast, modal: modal, confirm: confirmDialog, busy: busy,
+    fmtDate: fmtDate, fmtDateLong: fmtDateLong, addDays: addDays, addMonths: addMonths, today: today, dow: dow, DAYS: DAYS,
+    allergenName: allergenName, codeTags: codeTags, menuBadges: menuBadges, downloadXlsx: downloadXlsx, readFileBase64: readFileBase64, go: go, refreshBoot: refreshBoot, pad: pad };
+})();
+</script>

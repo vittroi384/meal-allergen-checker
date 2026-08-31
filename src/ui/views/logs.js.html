@@ -1,0 +1,28 @@
+<script>
+App.views.logs = {
+  title: '알림 로그',
+  render: function (el, r) {
+    var h = App.h;
+    var self = this;
+    var failedOnly = r.params && r.params.failed === '1';
+    var limit = Number((r.params && r.params.limit) || 200);
+    return App.api('apiLogs', { limit: limit, failedOnly: failedOnly }).then(function (rows) {
+      el.innerHTML =
+        '<div class="page-head"><div><h2>알림 로그</h2><div class="sub">최근 ' + limit + '건' + (failedOnly ? ' 중 실패만' : '') + ' · 표시 ' + rows.length + '건</div></div>' +
+        '<div class="actions"><label class="check"><input type="checkbox" id="failed"' + (failedOnly ? ' checked' : '') + '> 실패만</label>' +
+        '<select id="limit" style="width:auto"><option' + (limit === 100 ? ' selected' : '') + '>100</option><option' + (limit === 200 ? ' selected' : '') + '>200</option><option' + (limit === 500 ? ' selected' : '') + '>500</option></select>' +
+        '<button class="btn" id="refresh">새로고침</button></div></div>' +
+        '<div class="card"><div class="table-wrap"><table><thead><tr><th>발송시각</th><th>종류</th><th>채널</th><th>수신자</th><th>대상일</th><th>내용</th><th class="center">결과</th></tr></thead><tbody>' +
+        (rows.length ? rows.map(function (l) {
+          return '<tr' + (l.ok ? '' : ' class="row-error"') + '><td class="nowrap small">' + h(l.sentAt) + '</td><td class="nowrap">' + h(l.kind) + '</td><td class="nowrap">' + h(l.channel) + '</td><td class="small">' + h(l.recipient) + '</td><td class="nowrap small">' + h(l.targetDate) + '</td>' +
+            '<td class="small">' + h(l.summary) + (l.error ? '<br><span class="error-text">' + h(l.error) + '</span>' : '') + '</td><td class="center">' + (l.ok ? '<span class="badge ok">성공</span>' : '<span class="badge danger">실패</span>') + '</td></tr>';
+        }).join('') : '<tr><td colspan="7" class="empty">기록이 없습니다</td></tr>') +
+        '</tbody></table></div></div>';
+      var nav = function () { App.go('logs?failed=' + (App.$('#failed').checked ? 1 : 0) + '&limit=' + App.$('#limit').value); };
+      App.$('#failed').onchange = nav;
+      App.$('#limit').onchange = nav;
+      App.$('#refresh').onclick = function () { self.render(el, r); };
+    });
+  },
+};
+</script>

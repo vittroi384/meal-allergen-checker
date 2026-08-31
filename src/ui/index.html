@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>급식 알레르기 판별</title>
+  <?!= include('ui/styles.css') ?>
+</head>
+<body>
+  <div id="app" data-school="<?= schoolName ?>"></div>
+  <div id="toast-root"></div>
+  <div id="modal-root"></div>
+  <?!= include('ui/app.js') ?>
+  <?!= include('ui/views/dashboard.js') ?>
+  <?!= include('ui/views/calendar.js') ?>
+  <?!= include('ui/views/students.js') ?>
+  <?!= include('ui/views/meals.js') ?>
+  <?!= include('ui/views/settings.js') ?>
+  <?!= include('ui/views/logs.js') ?>
+  <?!= include('ui/views/print.js') ?>
+  <script>App.start();</script>
+</body>
+</html>
