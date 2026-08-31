@@ -98,9 +98,14 @@
   td.name { min-width: 5.5em; font-weight: 700; }
   td .sub-contact { color: var(--muted); font-size: 12.5px; margin-left: 4px; }
   /* 화면 폭에 맞추는 고정 배분 표 (가로 스크롤 없음) + 세로 스크롤·헤더 고정 */
-  .table-wrap.fit { overflow-x: hidden; }
+  .table-wrap.fit { overflow-x: auto; }
   .table-wrap.fit table { table-layout: fixed; width: 100%; }
   .table-wrap.fit td { overflow: hidden; text-overflow: ellipsis; }
+  /* 내용 크기로 고정하는 열(배지·버튼): 절대 잘리거나 말줄임되지 않음 */
+  .table-wrap td.keep, .table-wrap th.keep { overflow: visible !important; text-overflow: clip !important; white-space: nowrap; }
+  .table-wrap td.keep .btn + .btn { margin-left: 4px; }
+  .table-wrap td.keep:last-child, .table-wrap th.keep:last-child { padding-right: 16px; }
+  td.note { font-size: 12.5px; color: #374151; }
   /* 행 높이 통일(한 줄), 세로 가운데. 칩·배지·텍스트가 같은 높이에 놓이도록 */
   .table-wrap.uniform th, .table-wrap.uniform td { height: 44px; padding-top: 0; padding-bottom: 0; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
   .table-wrap.uniform td.chips { white-space: nowrap; }
