@@ -130,11 +130,11 @@ function teacherMap_(settings) {
   return buildTeacherMapFromStudents(filterActiveStudents(readStudents_(), currentSchoolYear_(s)));
 }
 
-/** 판별 대상 학생 (활성 + 현재 학년도) — 반별 담임(teacher) 을 붙여서 반환 */
+/** 판별 대상 학생 (활성 + 현재 학년도) — 반별 담임(teacher) 과 기타 키워드 동의어(keywordTerms) 를 붙여서 반환 */
 function readActiveStudents_(settings) {
   var s = settings || readSettings();
   var active = filterActiveStudents(readStudents_(), currentSchoolYear_(s));
-  return attachTeachers(active, buildTeacherMapFromStudents(active));
+  return expandStudentKeywords(attachTeachers(active, buildTeacherMapFromStudents(active)), parseKeywordList(s['기타알레르기목록']));
 }
 
 /** 전체 급식 행 (정규화, 날짜는 yyyy-MM-dd 문자열). 10분 캐시, 급식 시트 변경 시 즉시 무효화. */

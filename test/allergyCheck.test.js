@@ -66,6 +66,25 @@ test('checkMeal combines code and keyword reasons and sorts students', () => {
   assert.equal(core.formatAffectedItem(r.affected[1].items[0]), '키위 파이(밀, 키위)');
 });
 
+test('parseKeywordList / formatKeywordList / expandKeywordTerms', () => {
+  const list = core.parseKeywordList('키위=골드키위, 그린키위; 망고;\n복숭아 = 천도복숭아,복숭아 ; ; 키위');
+  assert.deepEqual(list, [{ word: '키위', synonyms: ['골드키위', '그린키위'] }, { word: '망고', synonyms: [] }, { word: '복숭아', synonyms: ['천도복숭아'] }]);
+  assert.equal(core.formatKeywordList(list), '키위=골드키위,그린키위; 망고; 복숭아=천도복숭아');
+  assert.deepEqual(core.expandKeywordTerms('키위', list), ['키위', '골드키위', '그린키위']);
+  assert.deepEqual(core.expandKeywordTerms('그린키위', list).sort(), ['골드키위', '그린키위', '키위']);
+  assert.deepEqual(core.expandKeywordTerms('키 위', list), ['키위', '골드키위', '그린키위']); // 공백 무시
+  assert.deepEqual(core.expandKeywordTerms('두리안', list), ['두리안']);
+});
+
+test('checkMeal matches keyword synonyms from the managed list, plain words otherwise', () => {
+  const list = core.parseKeywordList('키위=골드키위');
+  const students = core.expandStudentKeywords([student({ keywords: '키위, 두리안' })], list);
+  const r = core.checkMeal(students, [menu({ name: '골드키위 요거트', codes: '2' }), menu({ name: '두리안 케이크', codes: '' }), menu({ name: '망고 빙수', codes: '' })]);
+  assert.equal(r.affected[0].items.length, 2);
+  assert.deepEqual(r.affected[0].items[0].matchedKeywords, ['키위']); // 동의어로 매칭돼도 학생 키워드로 보고
+  assert.deepEqual(r.affected[0].items[1].matchedKeywords, ['두리안']);
+});
+
 test('filterActiveStudents: inactive or other school year excluded, empty year included', () => {
   const list = [
     student({ name: 'a', active: false }),

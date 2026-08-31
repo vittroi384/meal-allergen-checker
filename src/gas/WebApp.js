@@ -89,6 +89,7 @@ function apiBootstrap(token) {
     mealTypes: managedMealTypes_(settings),
     allMealTypes: MEAL_TYPES,
     allergens: ALLERGENS,
+    keywordList: parseKeywordList(settings['기타알레르기목록']),
     webAppUrl: getState('WEBAPP_URL') || settings['웹앱URL'] || '',
     lastSync: lastSyncInfo_(),
     triggers: listOurTriggers_(),

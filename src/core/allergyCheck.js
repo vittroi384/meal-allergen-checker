@@ -56,6 +56,50 @@ function parseKeywords(input) {
 }
 
 /**
+ * 설정 '기타알레르기목록' 파싱: '키위=골드키위,그린키위; 망고; 복숭아=천도복숭아' (세미콜론/줄바꿈 구분)
+ * @returns [{ word, synonyms: string[] }]
+ */
+function parseKeywordList(text) {
+  var out = [];
+  var seen = {};
+  String(text === undefined || text === null ? '' : text).split(/[;\n]/).forEach(function (part) {
+    var p = part.trim();
+    if (!p) return;
+    var eq = p.indexOf('=');
+    var word = (eq >= 0 ? p.slice(0, eq) : p).trim();
+    if (!word) return;
+    var synonyms = eq >= 0 ? splitList(p.slice(eq + 1)).filter(function (s) { return _normKeyword(s) !== _normKeyword(word); }) : [];
+    var nk = _normKeyword(word);
+    if (seen[nk]) return;
+    seen[nk] = true;
+    out.push({ word: word, synonyms: synonyms });
+  });
+  return out;
+}
+
+/** [{word, synonyms}] → 설정 문자열 */
+function formatKeywordList(list) {
+  return (list || []).map(function (e) { return e.synonyms && e.synonyms.length ? e.word + '=' + e.synonyms.join(',') : e.word; }).join('; ');
+}
+
+/** 학생 키워드 하나 → 매칭에 쓸 용어들. 목록에 있으면 동의어 포함, 없으면 그 단어 그대로 */
+function expandKeywordTerms(keyword, keywordList) {
+  var nk = _normKeyword(keyword);
+  var entry = (keywordList || []).filter(function (e) { return _normKeyword(e.word) === nk || e.synonyms.some(function (s) { return _normKeyword(s) === nk; }); })[0];
+  if (!entry) return [keyword];
+  var terms = [entry.word].concat(entry.synonyms);
+  if (terms.map(_normKeyword).indexOf(nk) < 0) terms.unshift(keyword);
+  return terms;
+}
+
+/** 학생 배열에 keywordTerms([{keyword, terms[]}]) 부여 (checkMeal 이 사용). 원본 불변 */
+function expandStudentKeywords(students, keywordList) {
+  return students.map(function (s) {
+    return Object.assign({}, s, { keywordTerms: (s.keywords || []).map(function (k) { return { keyword: k, terms: expandKeywordTerms(k, keywordList) }; }) });
+  });
+}
+
+/**
  * 시트에서 읽은 학생 객체를 판별용으로 정규화.
  * codes: number[], keywords: string[], active: boolean, grade/classNo/number: number
  */
@@ -139,10 +183,10 @@ function checkMeal(students, menus) {
     menus.forEach(function (menu) {
       var matchedCodes = menu.codes.filter(function (c) { return st.codes.indexOf(c) >= 0; });
       var normName = _normKeyword(menu.name);
-      var matchedKeywords = st.keywords.filter(function (k) {
-        var nk = _normKeyword(k);
-        return nk !== '' && normName.indexOf(nk) >= 0;
-      });
+      var kwTerms = st.keywordTerms || st.keywords.map(function (k) { return { keyword: k, terms: [k] }; });
+      var matchedKeywords = kwTerms.filter(function (kt) {
+        return kt.terms.some(function (t) { var nt = _normKeyword(t); return nt !== '' && normName.indexOf(nt) >= 0; });
+      }).map(function (kt) { return kt.keyword; });
       if (matchedCodes.length || matchedKeywords.length) {
         items.push({ menu: menu, matchedCodes: matchedCodes, matchedKeywords: matchedKeywords });
       }

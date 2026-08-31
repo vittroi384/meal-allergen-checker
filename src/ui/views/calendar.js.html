@@ -143,7 +143,7 @@ App.menuEditor = function (m, onSaved) {
     '<div class="form-grid">' +
     '<div class="field"><label>날짜</label><input type="date" id="me-date" value="' + h(m.date) + '"></div>' +
     '<div class="field"><label>식사구분</label><select id="me-type">' + App.state.boot.allMealTypes.map(function (t) { return '<option' + (t === m.mealType ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select></div>' +
-    '<div class="field full"><label>메뉴명</label><input type="text" id="me-name" value="' + h(m.name || '') + '" placeholder="예: 돈까스" autofocus></div>' +
+    '<div class="field full"><label>메뉴명</label><input type="text" id="me-name" value="' + h(m.name || '') + '" placeholder="예: 돈까스" autofocus><div id="me-kw" class="small" style="margin-top:6px"></div></div>' +
     '<div class="field full"><label>알레르기 유발식품 (해당 항목 체크)</label><div class="codes-grid">' +
     Object.keys(allergens).map(function (c) { return '<label class="check"><input type="checkbox" value="' + c + '"' + (codes.indexOf(Number(c)) >= 0 ? ' checked' : '') + '> ' + c + '. ' + h(allergens[c]) + '</label>'; }).join('') +
     '</div></div>' +
@@ -156,15 +156,36 @@ App.menuEditor = function (m, onSaved) {
     onMount: function (el, api) {
       var students = null;
       var norm = function (s) { return String(s || '').replace(/\s+/g, '').toLowerCase(); };
+      /** 학생 키워드 → 매칭 용어(관리 목록에 있으면 동의어 포함, 없으면 그 단어 그대로) */
+      function terms(k) {
+        var list = App.state.boot.keywordList || [];
+        var e = list.filter(function (x) { return norm(x.word) === norm(k) || x.synonyms.some(function (s) { return norm(s) === norm(k); }); })[0];
+        return e ? [e.word].concat(e.synonyms, [k]) : [k];
+      }
+      function renderKeywordInfo(name) {
+        var box = App.$('#me-kw', el);
+        var list = App.state.boot.keywordList || [];
+        var found = list.filter(function (e) { return [e.word].concat(e.synonyms).some(function (t) { var nt = norm(t); return nt && name.indexOf(nt) >= 0; }); }).map(function (e) { return e.word; });
+        box.innerHTML = (found.length ? '<span class="muted">메뉴명에서 감지된 기타 알레르기 키워드:</span> ' + found.map(function (w) { return '<span class="tag kw">' + h(w) + '</span>'; }).join('') : '<span class="muted">기타 알레르기 키워드 감지 없음.</span>') +
+          ' <span class="inline" style="margin-left:6px"><input type="text" id="me-kw-new" placeholder="새 키워드 (예: 키위)" style="width:140px;height:28px;font-size:12.5px"><button type="button" class="btn sm" id="me-kw-add">목록에 추가</button></span>';
+        App.$('#me-kw-add', el).onclick = function () {
+          var w = App.$('#me-kw-new', el).value.trim();
+          if (!w) return;
+          var b = this; App.busy(b, true);
+          App.api('apiAddKeyword', w, '').then(function (r) { App.state.boot.keywordList = r.keywordList; App.toast('"' + w + '" 을(를) 기타 알레르기 목록에 추가했습니다', 'ok'); renderPreview(); })
+            .catch(function (err) { App.toast(err.message, 'danger'); App.busy(b, false); });
+        };
+      }
       function renderPreview() {
         var box = App.$('#me-preview', el);
-        if (!students) return;
         var sel = App.$$('.codes-grid input:checked', el).map(function (i) { return Number(i.value); });
         var name = norm(App.$('#me-name', el).value);
+        renderKeywordInfo(name);
+        if (!students) return;
         var hits = [];
         students.forEach(function (s) {
           var codeHits = (s.codes || []).filter(function (c) { return sel.indexOf(c) >= 0; }).map(function (c) { return allergens[c] || String(c); });
-          var kwHits = (s.keywords || []).filter(function (k) { var nk = norm(k); return nk && name.indexOf(nk) >= 0; });
+          var kwHits = (s.keywords || []).filter(function (k) { return terms(k).some(function (t) { var nt = norm(t); return nt && name.indexOf(nt) >= 0; }); });
           if (codeHits.length || kwHits.length) hits.push({ student: s, text: codeHits.concat(kwHits).join(', ') });
         });
         box.innerHTML = App.affectedListHtml(hits, sel.length || name ? '이 조건에 해당하는 학생이 없습니다' : '알레르기 항목을 체크하거나 메뉴명을 입력하세요');

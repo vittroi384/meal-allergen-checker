@@ -12,10 +12,12 @@ App.views.logs = {
         '<div class="actions"><label class="check"><input type="checkbox" id="failed"' + (failedOnly ? ' checked' : '') + '> 실패만</label>' +
         '<select id="limit" style="width:auto"><option' + (limit === 100 ? ' selected' : '') + '>100</option><option' + (limit === 200 ? ' selected' : '') + '>200</option><option' + (limit === 500 ? ' selected' : '') + '>500</option></select>' +
         '<button class="btn" id="refresh">새로고침</button></div></div>' +
-        '<div class="card"><div class="table-wrap"><table><thead><tr><th>발송시각</th><th>종류</th><th>채널</th><th>수신자</th><th>대상일</th><th>내용</th><th class="center">결과</th></tr></thead><tbody>' +
+        '<div class="card"><div class="table-wrap fit tall uniform"><table><colgroup><col style="width:160px"><col style="width:100px"><col style="width:84px"><col style="width:200px"><col style="width:104px"><col><col style="width:76px"></colgroup>' +
+        '<thead><tr><th>발송시각</th><th>종류</th><th>채널</th><th>수신자</th><th>대상일</th><th>내용 (마우스를 올리면 전체)</th><th class="center">결과</th></tr></thead><tbody>' +
         (rows.length ? rows.map(function (l) {
-          return '<tr' + (l.ok ? '' : ' class="row-error"') + '><td class="small">' + h(l.sentAt) + '</td><td>' + h(l.kind) + '</td><td>' + h(l.channel) + '</td><td class="wrap small">' + h(l.recipient) + '</td><td class="small">' + h(l.targetDate) + '</td>' +
-            '<td class="wrap small">' + h(l.summary) + (l.error ? '<br><span class="error-text">' + h(l.error) + '</span>' : '') + '</td><td class="center">' + (l.ok ? '<span class="badge ok">성공</span>' : '<span class="badge danger">실패</span>') + '</td></tr>';
+          var full = l.summary + (l.error ? ' — 오류: ' + l.error : '');
+          return '<tr' + (l.ok ? '' : ' class="row-error"') + '><td class="small">' + h(l.sentAt) + '</td><td>' + h(l.kind) + '</td><td>' + h(l.channel) + '</td><td class="small" title="' + h(l.recipient) + '">' + h(l.recipient) + '</td><td class="small">' + h(l.targetDate) + '</td>' +
+            '<td class="small" title="' + h(full) + '">' + (l.error ? '<span class="error-text">' + h(l.error) + '</span> · ' : '') + h(l.summary) + '</td><td class="center">' + (l.ok ? '<span class="badge ok fixed">성공</span>' : '<span class="badge danger fixed">실패</span>') + '</td></tr>';
         }).join('') : '<tr><td colspan="7" class="empty">기록이 없습니다</td></tr>') +
         '</tbody></table></div></div>';
       var nav = function () { App.go('logs?failed=' + (App.$('#failed').checked ? 1 : 0) + '&limit=' + App.$('#limit').value); };

@@ -48,6 +48,7 @@ App.views.settings = {
         secretField('NEIS_API_KEY', 'NEIS 인증키', '<a href="https://open.neis.go.kr" target="_blank" rel="noopener">open.neis.go.kr</a> 회원가입 → 인증키 신청 (즉시 발급). 저장 시 유효성을 확인합니다.') +
         '<div class="field"><label>학년도 override</label><input type="text" data-set="학년도override" value="' + h(s['학년도override']) + '" placeholder="비우면 자동 (현재 ' + b.schoolYear + ')"><span class="help">3월 1일 기준 자동 계산. 특별한 경우만 입력</span></div>' +
         '<div class="field"><label>관리할 끼니</label><div class="toolbar" style="height:38px">' + b.allMealTypes.map(function (t) { return '<label class="check"><input type="checkbox" data-meal="' + t + '"' + (b.mealTypes.indexOf(t) >= 0 ? ' checked' : '') + '> ' + t + '</label>'; }).join('') + '</div></div>' +
+        '<div class="field full"><label>기타 알레르기 키워드 목록</label><textarea data-set="기타알레르기목록" style="min-height:70px" placeholder="키위=골드키위,그린키위; 망고; 복숭아=천도복숭아">' + h(s['기타알레르기목록']) + '</textarea><span class="help">세미콜론(;)으로 항목 구분, = 뒤에 동의어를 쉼표로. 목록에 있는 키워드는 동의어까지 메뉴명에서 찾고, 목록에 없는 키워드는 그 단어 그대로 찾습니다. 학생/메뉴 입력창에서 "목록에 추가"로도 등록됩니다.</span></div>' +
         '</div></div>' +
 
         // ---- 담당자 알림 ----

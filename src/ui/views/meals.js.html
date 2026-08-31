@@ -28,13 +28,13 @@ App.views.meals = {
         '<div id="sync-result" style="margin-top:10px"></div></div>' +
 
         '<div class="card"><div class="card-head"><h3>확인 필요 메뉴 <span class="badge warn">' + o.unchecked.length + '</span></h3></div>' +
-        (o.unchecked.length ? '<p class="small muted" style="margin-bottom:8px">NEIS 에 알레르기 번호가 없는 메뉴입니다. 실제로 유발식품이 없으면 "확인함", 있으면 "수정"으로 코드를 입력하세요.</p><div class="table-wrap" style="max-height:360px;overflow:auto"><table><thead><tr><th>날짜</th><th>끼니</th><th>메뉴</th><th></th></tr></thead><tbody>' +
-          o.unchecked.map(function (m) { return '<tr><td><a href="#/day/' + m.date + '">' + App.fmtDate(m.date) + '</a></td><td>' + h(m.mealType) + '</td><td class="wrap">' + h(m.name) + '</td><td><button class="btn sm" data-check="' + m._row + '">확인함</button> <button class="btn sm ghost" data-edit="' + m._row + '">수정</button></td></tr>'; }).join('') +
+        (o.unchecked.length ? '<p class="small muted" style="margin-bottom:8px">NEIS 에 알레르기 번호가 없는 메뉴입니다. 실제로 유발식품이 없으면 "확인함", 있으면 "수정"으로 코드를 입력하세요.</p><div class="table-wrap fit uniform" style="max-height:360px;overflow-y:auto"><table><colgroup><col style="width:110px"><col style="width:80px"><col><col style="width:170px"></colgroup><thead><tr><th class="center">날짜</th><th class="center">끼니</th><th>메뉴</th><th></th></tr></thead><tbody>' +
+          o.unchecked.map(function (m) { return '<tr><td class="center"><a href="#/day/' + m.date + '">' + App.fmtDate(m.date) + '</a></td><td class="center">' + h(m.mealType) + '</td><td title="' + h(m.name) + '">' + h(m.name) + '</td><td><button class="btn sm" data-check="' + m._row + '">확인함</button> <button class="btn sm ghost" data-edit="' + m._row + '">수정</button></td></tr>'; }).join('') +
           '</tbody></table></div>' : '<div class="empty">이 달에는 확인 필요 메뉴가 없습니다 ✅</div>') + '</div>' +
 
         '<div class="card"><div class="card-head"><h3>수동 보호 끼니 <span class="badge purple">' + o.protectedMeals.length + '</span></h3></div>' +
-        (o.protectedMeals.length ? '<p class="small muted" style="margin-bottom:8px">직접 추가/수정/삭제/확인 처리한 끼니입니다. NEIS 원본으로 돌리려면 되돌리기를 누르세요.</p><div class="table-wrap"><table><thead><tr><th>날짜</th><th>끼니</th><th></th></tr></thead><tbody>' +
-          o.protectedMeals.map(function (m) { return '<tr><td class="nowrap"><a href="#/day/' + m.date + '">' + h(m.label) + '</a></td><td>' + h(m.mealType) + '</td><td class="nowrap"><button class="btn sm danger" data-revert-date="' + m.date + '" data-revert-type="' + h(m.mealType) + '">NEIS 데이터로 되돌리기</button></td></tr>'; }).join('') +
+        (o.protectedMeals.length ? '<p class="small muted" style="margin-bottom:8px">직접 추가/수정/삭제/확인 처리한 끼니입니다. NEIS 원본으로 돌리려면 되돌리기를 누르세요.</p><div class="table-wrap fit uniform"><table><colgroup><col style="width:110px"><col style="width:80px"><col></colgroup><thead><tr><th class="center">날짜</th><th class="center">끼니</th><th></th></tr></thead><tbody>' +
+          o.protectedMeals.map(function (m) { return '<tr><td class="center"><a href="#/day/' + m.date + '">' + h(m.label) + '</a></td><td class="center">' + h(m.mealType) + '</td><td><button class="btn sm danger" data-revert-date="' + m.date + '" data-revert-type="' + h(m.mealType) + '">NEIS 데이터로 되돌리기</button></td></tr>'; }).join('') +
           '</tbody></table></div>' : '<div class="empty">수동 보호된 끼니가 없습니다</div>') + '</div>' +
 
         '<div class="card"><div class="card-head"><h3>엑셀 내보내기 / 가져오기</h3></div><div class="grid cols-2">' +

@@ -50,6 +50,28 @@ function apiSaveStudent(token, raw) {
   return { ok: true, student: serializeStudent_(st), warnings: warnings };
 }
 
+/**
+ * 기타 알레르기 키워드를 관리 목록(설정 '기타알레르기목록')에 추가. 동의어는 선택.
+ * @returns { ok, keywordList }
+ */
+function apiAddKeyword(token, word, synonyms) {
+  requireSession(token);
+  var w = String(word || '').trim();
+  if (!w) throw new Error('키워드를 입력하세요');
+  var settings = readSettings();
+  var list = parseKeywordList(settings['기타알레르기목록']);
+  var norm = function (s) { return String(s || '').replace(/\s+/g, '').toLowerCase(); };
+  var entry = list.filter(function (e) { return norm(e.word) === norm(w); })[0];
+  var syn = splitList(synonyms).filter(function (s) { return norm(s) !== norm(w); });
+  if (entry) {
+    syn.forEach(function (s) { if (entry.synonyms.map(norm).indexOf(norm(s)) < 0) entry.synonyms.push(s); });
+  } else {
+    list.push({ word: w, synonyms: syn });
+  }
+  writeSettings({ '기타알레르기목록': formatKeywordList(list) });
+  return { ok: true, keywordList: list };
+}
+
 function apiSetStudentActive(token, row, active) {
   requireSession(token);
   var s = readStudents_().filter(function (x) { return x._row === row; })[0];
