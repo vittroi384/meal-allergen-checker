@@ -182,6 +182,20 @@ var App = (function () {
   function refreshBoot() { return api('apiBootstrap').then(function (b) { state.boot = b; return b; }); }
   function start() {
     window.addEventListener('hashchange', renderRoute);
+    // Apps Script 는 앱을 iframe 안에서 실행한다. 내부 링크(#/...)는 최상위 창으로 나가지 않도록
+    // 기본 동작을 막고 iframe 의 hash 만 바꾼다. 외부 링크는 target=_blank 로만 연다.
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest('a[href]');
+      if (!a) return;
+      var href = a.getAttribute('href') || '';
+      if (href.charAt(0) === '#') {
+        e.preventDefault();
+        if (location.hash === href) renderRoute(); else location.hash = href;
+      } else if (!a.target) {
+        a.target = '_blank';
+        a.rel = 'noopener';
+      }
+    });
     var t = loadToken();
     if (!t) { renderLogin(); return; }
     state.token = t;
