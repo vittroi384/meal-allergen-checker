@@ -1,9 +1,13 @@
 <script>
 App.views.dashboard = {
   title: '대시보드',
+  skeleton: 'dashboard',
   render: function (el) {
     var h = App.h;
-    return App.api('apiDashboard').then(function (d) {
+    return App.cached('dashboard', function () { return App.api('apiDashboard'); }).then(function (d) {
+      // 달력 탭을 바로 열 수 있도록 이번 달 집계를 미리 받아 둔다
+      var ym = d.today.slice(0, 7);
+      App.prefetch('month:' + ym, function () { return App.api('apiMonth', ym); });
       var boot = App.state.boot;
       var totalToday = 0;
       d.mealTypes.forEach(function (t) { totalToday += d.todayByType[t].count; });

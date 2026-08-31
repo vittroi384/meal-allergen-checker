@@ -46,21 +46,23 @@ function setState(key, value) {
 
 // ---------- 설정 시트 ----------
 
-/** 설정 시트 → { 키: 값(문자열 또는 불리언) }. 없는 키는 기본값. */
+/** 설정 시트 → { 키: 값(문자열 또는 불리언) }. 없는 키는 기본값. 캐시됨(설정 변경 시 무효화). */
 function readSettings() {
-  var defaults = {};
-  SETTING_DEFS.forEach(function (d) { defaults[d[0]] = d[1]; });
-  var sheet = getSpreadsheet_().getSheetByName(SHEETS.SETTINGS);
-  if (!sheet) return defaults;
-  var values = sheet.getDataRange().getValues();
-  var out = Object.assign({}, defaults);
-  for (var r = 1; r < values.length; r++) {
-    var key = String(values[r][0] || '').trim();
-    if (!key) continue;
-    var v = values[r][1];
-    out[key] = typeof v === 'boolean' ? v : String(v === null || v === undefined ? '' : v).trim();
-  }
-  return out;
+  return cached_('settings', function () {
+    var defaults = {};
+    SETTING_DEFS.forEach(function (d) { defaults[d[0]] = d[1]; });
+    var sheet = getSpreadsheet_().getSheetByName(SHEETS.SETTINGS);
+    if (!sheet) return defaults;
+    var values = sheet.getDataRange().getValues();
+    var out = Object.assign({}, defaults);
+    for (var r = 1; r < values.length; r++) {
+      var key = String(values[r][0] || '').trim();
+      if (!key) continue;
+      var v = values[r][1];
+      out[key] = typeof v === 'boolean' ? v : String(v === null || v === undefined ? '' : v).trim();
+    }
+    return out;
+  });
 }
 
 /**
@@ -78,21 +80,33 @@ function writeSettings(partial) {
   var descByKey = {};
   SETTING_DEFS.forEach(function (d) { descByKey[d[0]] = d[2]; });
 
+  // 기존 키는 값 열을 한 번에 갱신, 새 키는 하단에 한 번에 추가
+  var colValues = values.length > 1 ? sheet.getRange(2, 2, values.length - 1, 1).getValues() : [];
+  var changed = false;
+  var toAppend = [];
   Object.keys(partial).forEach(function (key) {
     if (SETTING_KEYS.indexOf(key) < 0) return; // 정의되지 않은 키는 무시
     var v = partial[key];
     if (SETTING_BOOL_KEYS.indexOf(key) >= 0) v = toBool(v, false);
     else v = v === undefined || v === null ? '' : String(v).trim();
     if (rowByKey[key]) {
-      sheet.getRange(rowByKey[key], 2).setValue(v);
+      colValues[rowByKey[key] - 2][0] = v;
+      changed = true;
     } else {
-      sheet.appendRow([key, v, descByKey[key] || '']);
-      rowByKey[key] = sheet.getLastRow();
-      if (SETTING_BOOL_KEYS.indexOf(key) >= 0) {
-        sheet.getRange(rowByKey[key], 2).setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build());
-      }
+      toAppend.push([key, v, descByKey[key] || '']);
     }
   });
+  if (changed && colValues.length) sheet.getRange(2, 2, colValues.length, 1).setValues(colValues);
+  if (toAppend.length) {
+    var start = sheet.getLastRow() + 1;
+    sheet.getRange(start, 1, toAppend.length, 3).setValues(toAppend);
+    toAppend.forEach(function (row, i) {
+      if (SETTING_BOOL_KEYS.indexOf(row[0]) >= 0) {
+        sheet.getRange(start + i, 2).setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build());
+      }
+    });
+  }
+  bumpDataVersion_();
 }
 
 function settingBool_(settings, key) {

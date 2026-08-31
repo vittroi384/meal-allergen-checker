@@ -90,12 +90,29 @@ function apiBootstrap(token) {
   };
 }
 
+/** 로그인 직후 1회 호출: 부트스트랩 + 대시보드 + 이번 달 달력을 한 번에 */
+function apiInit(token) {
+  requireSession(token);
+  var today = todayStr_();
+  return { boot: apiBootstrap(token), dashboard: apiDashboard(token), month: apiMonth(token, yearMonthOf(today)) };
+}
+
 // ---------- 대시보드 ----------
 
 function apiDashboard(token) {
   requireSession(token);
-  var settings = readSettings();
   var today = todayStr_();
+  // 판별 결과는 캐시(학생/급식/설정 변경 시 즉시 무효화), 로그·동기화 상태는 매번 최신
+  var core = cached_('dashboard:' + today, function () { return _buildDashboardCore(today); });
+  core.failures = readLogs_(100).filter(function (l) { return l.ok !== true && l.ok !== 'TRUE'; }).slice(0, 5)
+    .map(function (l) { return { sentAt: String(l.sentAt), kind: l.kind, channel: l.channel, error: l.error, summary: l.summary }; });
+  core.lastSync = lastSyncInfo_();
+  core.schoolConfigured = !!(core.schoolCode && hasSecret('NEIS_API_KEY'));
+  return core;
+}
+
+function _buildDashboardCore(today) {
+  var settings = readSettings();
   var mealTypes = managedMealTypes_(settings);
   var allStudents = readStudents_();
   var students = filterActiveStudents(allStudents, currentSchoolYear_(settings));
@@ -118,14 +135,11 @@ function apiDashboard(token) {
 
   var ym = yearMonthOf(today);
   var monthUnchecked = meals.filter(function (m) { return m.date.slice(0, 7) === ym && m.needsCheck && mealTypes.indexOf(m.mealType) >= 0; }).length;
-  var failures = readLogs_(100).filter(function (l) { return l.ok !== true && l.ok !== 'TRUE'; }).slice(0, 5)
-    .map(function (l) { return { sentAt: String(l.sentAt), kind: l.kind, channel: l.channel, error: l.error, summary: l.summary }; });
 
   return {
     today: today, todayLabel: formatKoreanDateLong(today), mealTypes: mealTypes, todayByType: todayByType, week: week,
-    monthUnchecked: monthUnchecked, failures: failures, lastSync: lastSyncInfo_(),
-    studentCount: allStudents.length, activeStudentCount: students.length,
-    schoolConfigured: !!(settings['학교코드'] && hasSecret('NEIS_API_KEY')),
+    monthUnchecked: monthUnchecked, studentCount: allStudents.length, activeStudentCount: students.length,
+    schoolCode: String(settings['학교코드'] || ''),
   };
 }
 
@@ -133,27 +147,32 @@ function apiDashboard(token) {
 
 function apiMonth(token, ym) {
   requireSession(token);
-  var settings = readSettings();
-  var mealTypes = managedMealTypes_(settings);
-  var range = monthRange(ym);
-  var students = readActiveStudents_(settings);
-  var meals = readMealsInRange_(range.start, range.end, mealTypes);
-  var days = summarizePeriod(checkPeriod(students, meals, mealTypes));
-  return { ym: ym, start: range.start, end: range.end, days: days, mealTypes: mealTypes };
+  if (!/^\d{4}-\d{2}$/.test(ym || '')) throw new Error('월 형식 오류');
+  return cached_('month:' + ym, function () {
+    var settings = readSettings();
+    var mealTypes = managedMealTypes_(settings);
+    var range = monthRange(ym);
+    var students = readActiveStudents_(settings);
+    var meals = readMealsInRange_(range.start, range.end, mealTypes);
+    var days = summarizePeriod(checkPeriod(students, meals, mealTypes));
+    return { ym: ym, start: range.start, end: range.end, days: days, mealTypes: mealTypes };
+  });
 }
 
 function apiDay(token, date) {
   requireSession(token);
   if (!isValidDateStr(date)) throw new Error('날짜 형식 오류');
-  var settings = readSettings();
-  var mealTypes = managedMealTypes_(settings);
-  var students = readActiveStudents_(settings);
-  var meals = readMealsInRange_(date, date, MEAL_TYPES);
-  var byType = {};
-  mealTypes.forEach(function (t) {
-    byType[t] = serializeMealResult_(checkMeal(students, meals.filter(function (m) { return m.mealType === t; })));
+  return cached_('day:' + date, function () {
+    var settings = readSettings();
+    var mealTypes = managedMealTypes_(settings);
+    var students = readActiveStudents_(settings);
+    var meals = readMealsInRange_(date, date, MEAL_TYPES);
+    var byType = {};
+    mealTypes.forEach(function (t) {
+      byType[t] = serializeMealResult_(checkMeal(students, meals.filter(function (m) { return m.mealType === t; })));
+    });
+    return { date: date, label: formatKoreanDateLong(date), mealTypes: mealTypes, byType: byType };
   });
-  return { date: date, label: formatKoreanDateLong(date), mealTypes: mealTypes, byType: byType };
 }
 
 // ---------- 로그 ----------

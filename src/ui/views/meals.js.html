@@ -2,12 +2,13 @@
 /* 급식 관리: 월 선택, 동기화, 확인 필요 메뉴, 수동 보호 끼니, xlsx 내보내기/가져오기 */
 App.views.meals = {
   title: '급식 관리',
+  skeleton: 'stats-table',
   render: function (el, r) {
     var h = App.h;
     var self = this;
     var ym = (r.params && /^\d{4}-\d{2}$/.test(r.params.ym)) ? r.params.ym : (self._ym || App.today().slice(0, 7));
     self._ym = ym;
-    return App.api('apiMealsOverview', ym).then(function (o) {
+    return App.cached('meals:' + ym, function () { return App.api('apiMealsOverview', ym); }).then(function (o) {
       var boot = App.state.boot;
       var p = ym.split('-');
       var configured = boot.secretStatus.NEIS_API_KEY && boot.settings['학교코드'];
@@ -43,7 +44,7 @@ App.views.meals = {
 
         (o.months.length ? '<div class="card"><div class="card-head"><h3>데이터가 있는 달</h3></div><div class="inline">' + o.months.map(function (m) { return '<a class="btn sm' + (m.ym === ym ? ' primary' : '') + '" href="#/meals?ym=' + m.ym + '">' + m.ym + ' <span class="small" style="opacity:.7">(' + m.count + ')</span></a>'; }).join('') + '</div></div>' : '');
 
-      var reload = function () { return self.render(el, { params: { ym: ym } }); };
+      var reload = function () { App.changed('meals'); return self.render(el, { params: { ym: ym } }); };
       App.$('#ym').onchange = function (e) { if (e.target.value) App.go('meals?ym=' + e.target.value); };
       function sync(months, btn) {
         App.busy(btn, true);

@@ -26,15 +26,20 @@ function apiSaveMenu(token, m) {
   return { ok: true };
 }
 
-/** 같은 끼니의 나머지 행도 수동수정여부=TRUE 로 (끼니 단위 보호 일관성) */
+/** 같은 끼니의 나머지 행도 수동수정여부=TRUE 로 (끼니 단위 보호 일관성). 열 전체를 한 번에 읽고 한 번에 쓴다. */
 function _protectMeal(date, mealType) {
   var sheet = getSheet_(SHEETS.MEALS);
-  var idx = headerIndex_(sheet);
-  var col = idx['수동수정여부'];
-  if (!col) return;
-  readMeals_().forEach(function (r) {
-    if (r.date === date && r.mealType === mealType && !r.manualEdited) sheet.getRange(r._row, col).setValue(true);
-  });
+  var col = headerIndex_(sheet)['수동수정여부'];
+  var n = sheet.getLastRow() - 1;
+  if (!col || n < 1) return;
+  var rows = {};
+  readMeals_().forEach(function (r) { if (r.date === date && r.mealType === mealType && !r.manualEdited) rows[r._row] = true; });
+  if (!Object.keys(rows).length) return;
+  var range = sheet.getRange(2, col, n, 1);
+  var vals = range.getValues();
+  Object.keys(rows).forEach(function (r) { vals[Number(r) - 2][0] = true; });
+  range.setValues(vals);
+  bumpDataVersion_();
 }
 
 function apiDeleteMenu(token, row) {

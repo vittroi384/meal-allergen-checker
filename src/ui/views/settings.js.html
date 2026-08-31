@@ -2,6 +2,7 @@
 /* 설정: 학교, 끼니/시간, 담당자 연락처, 채널·비밀값, 학부모 알림, 테스트, 비밀번호, 트리거 */
 App.views.settings = {
   title: '설정',
+  skeleton: 'form',
   render: function (el) {
     var h = App.h;
     var self = this;
@@ -76,7 +77,7 @@ App.views.settings = {
         '<div class="inline" style="margin-top:10px"><button class="btn" id="triggers-reinstall">트리거 다시 등록</button><span class="small muted">알림 시각을 바꾸면 자동으로 다시 등록됩니다. 다른 계정으로 이관하는 절차는 시트 메뉴의 "이관용 설정 내보내기/가져오기"와 README 참고</span></div></div>';
 
       // ---- 이벤트 ----
-      var reload = function () { return self.render(el); };
+      var reload = function () { App.invalidate(); return self.render(el); }; // 설정은 모든 화면에 영향
       App.$('#save').onclick = function () {
         var btn = this;
         var partial = {};

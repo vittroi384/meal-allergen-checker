@@ -185,6 +185,16 @@
   .toast.danger { background: var(--danger); }
   .toast.ok { background: var(--ok); }
   @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  /* 스켈레톤 */
+  .sk { background: linear-gradient(90deg, #e9edf3 25%, #f4f6fa 37%, #e9edf3 63%); background-size: 400% 100%; animation: sk 1.3s ease-in-out infinite; border-radius: 8px; }
+  @keyframes sk { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+  .sk-line { height: 14px; margin: 8px 0; }
+  .sk-title { height: 26px; width: 40%; margin-bottom: 16px; }
+  .sk-stat { height: 92px; }
+  .sk-block { height: 200px; }
+  .sk-cell { height: 84px; }
+  .sk-row { display: grid; grid-template-columns: 1fr 2fr 2fr 1fr; gap: 12px; padding: 12px; border-bottom: 1px solid var(--border); }
+  .sk-row .sk { height: 14px; margin: 0; }
   .spinner { width: 18px; height: 18px; border: 2px solid #cbd5e1; border-top-color: var(--primary); border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; vertical-align: middle; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .loading { display: flex; align-items: center; gap: 10px; color: var(--muted); padding: 30px; justify-content: center; }

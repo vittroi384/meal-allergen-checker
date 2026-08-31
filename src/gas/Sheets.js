@@ -74,6 +74,7 @@ function appendObjects_(sheetName, headers, fieldMap, objects) {
   });
   var start = sheet.getLastRow() + 1;
   sheet.getRange(start, 1, rows.length, width).setValues(rows);
+  if (sheetName !== SHEETS.LOGS) bumpDataVersion_();
   return rows.length;
 }
 
@@ -92,6 +93,7 @@ function updateObjectRow_(sheetName, rowNumber, headers, fieldMap, obj) {
     row[col - 1] = v === undefined || v === null ? '' : v;
   });
   range.setValues([row]);
+  if (sheetName !== SHEETS.LOGS) bumpDataVersion_();
 }
 
 /** 행 삭제. rowNumbers 는 내림차순으로 정렬해 처리. 연속 구간은 한 번에 삭제. */
@@ -109,14 +111,17 @@ function deleteRows_(sheetName, rowNumbers) {
     deleted += end - start + 1;
     i++;
   }
+  if (sheetName !== SHEETS.LOGS) bumpDataVersion_();
   return deleted;
 }
 
 // ---------- 도메인별 읽기/쓰기 ----------
 
-/** 전체 학생 (정규화). */
+/** 전체 학생 (정규화). 10분 캐시, 학생 시트 변경 시 즉시 무효화. */
 function readStudents_() {
-  return readTable_(SHEETS.STUDENTS, FIELD_MAP.STUDENTS).map(normalizeStudent);
+  return cached_('students', function () {
+    return readTable_(SHEETS.STUDENTS, FIELD_MAP.STUDENTS).map(normalizeStudent);
+  });
 }
 
 /** 판별 대상 학생 (활성 + 현재 학년도) */
@@ -124,11 +129,13 @@ function readActiveStudents_(settings) {
   return filterActiveStudents(readStudents_(), currentSchoolYear_(settings));
 }
 
-/** 전체 급식 행 (정규화, 날짜는 yyyy-MM-dd 문자열) */
+/** 전체 급식 행 (정규화, 날짜는 yyyy-MM-dd 문자열). 10분 캐시, 급식 시트 변경 시 즉시 무효화. */
 function readMeals_() {
-  return readTable_(SHEETS.MEALS, FIELD_MAP.MEALS).map(function (m) {
-    m.date = cellToDateStr(m.date);
-    return normalizeMenu(m);
+  return cached_('meals', function () {
+    return readTable_(SHEETS.MEALS, FIELD_MAP.MEALS).map(function (m) {
+      m.date = cellToDateStr(m.date);
+      return normalizeMenu(m);
+    });
   });
 }
 

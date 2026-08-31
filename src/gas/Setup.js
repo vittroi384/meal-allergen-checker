@@ -25,6 +25,14 @@ function onOpen() {
     .addToUi();
 }
 
+/** 시트를 직접 편집하면 읽기 캐시를 즉시 무효화 (단순 트리거) */
+function onEdit(e) {
+  try {
+    var name = e && e.range ? e.range.getSheet().getName() : '';
+    if ([SHEETS.STUDENTS, SHEETS.MEALS, SHEETS.SETTINGS].indexOf(name) >= 0) bumpDataVersion_();
+  } catch (err) { /* 무시 */ }
+}
+
 /**
  * 초기 설정: 시트 구조 → 유효성 → 설정 기본값 → 트리거 → 비밀번호.
  * 시트 메뉴에서 실행하면 결과를 알림창으로 보여준다.
@@ -32,6 +40,7 @@ function onOpen() {
 function setup() {
   var report = [];
   ensureAllSheets_();
+  bumpDataVersion_();
   report.push('시트 구조 확인/생성 완료 (학생, 급식, 알림로그, 설정, 학생_업로드템플릿)');
 
   var settings = readSettings();

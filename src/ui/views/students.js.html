@@ -7,7 +7,7 @@ App.views.students = {
     var self = this;
     var filter = self._filter || { q: '', grade: '', classNo: '', activeOnly: true };
     self._filter = filter;
-    return App.api('apiStudents').then(function (data) {
+    return App.cached('students', function () { return App.api('apiStudents'); }).then(function (data) {
       var all = data.students;
       var grades = {}, classes = {};
       all.forEach(function (s) { grades[s.grade] = true; if (!filter.grade || Number(filter.grade) === s.grade) classes[s.classNo] = true; });
@@ -42,7 +42,7 @@ App.views.students = {
 
       var byRow = {};
       all.forEach(function (s) { byRow[s._row] = s; });
-      var reload = function () { return self.render(el); };
+      var reload = function () { App.changed('students'); return self.render(el); };
       var applyFilter = function () { filter.q = App.$('#q').value; filter.grade = App.$('#grade').value; filter.classNo = App.$('#class').value; filter.activeOnly = App.$('#active-only').checked; reload(); };
       var qTimer;
       App.$('#q').addEventListener('input', function () { clearTimeout(qTimer); qTimer = setTimeout(applyFilter, 250); });

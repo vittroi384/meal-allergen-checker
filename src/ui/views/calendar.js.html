@@ -2,10 +2,13 @@
 /* 월간 달력 + 날짜 상세(메뉴 편집) */
 App.views.calendar = {
   title: '달력',
+  skeleton: 'calendar',
   render: function (el, r) {
     var h = App.h;
     var ym = /^\d{4}-\d{2}$/.test(r.arg) ? r.arg : App.today().slice(0, 7);
-    return App.api('apiMonth', ym).then(function (m) {
+    return App.cached('month:' + ym, function () { return App.api('apiMonth', ym); }).then(function (m) {
+      // 이전/다음 달은 미리 받아 둔다
+      [App.addMonths(ym, -1), App.addMonths(ym, 1)].forEach(function (nm) { App.prefetch('month:' + nm, function () { return App.api('apiMonth', nm); }); });
       var byDate = {};
       m.days.forEach(function (d) { byDate[d.date] = d; });
       var first = m.start, last = m.end;
@@ -48,11 +51,12 @@ App.views.calendar = {
 
 App.views.day = {
   title: '날짜 상세',
+  skeleton: 'day',
   render: function (el, r) {
     var h = App.h;
     var date = /^\d{4}-\d{2}-\d{2}$/.test(r.arg) ? r.arg : App.today();
     var self = this;
-    return App.api('apiDay', date).then(function (d) {
+    return App.cached('day:' + date, function () { return App.api('apiDay', date); }).then(function (d) {
       var html = '<div class="page-head"><div><h2>' + h(d.label) + '</h2><div class="sub"><a href="#/calendar/' + date.slice(0, 7) + '">← 달력</a></div></div>' +
         '<div class="actions"><button class="btn" id="prev">‹ 전날</button><button class="btn" id="next">다음날 ›</button><input type="date" id="pick" value="' + date + '" style="width:auto"><button class="btn primary" id="dl">이 날 결과 xlsx</button></div></div>';
       d.mealTypes.forEach(function (t) {
@@ -81,7 +85,7 @@ App.views.day = {
 
       var menusByRow = {};
       d.mealTypes.forEach(function (t) { d.byType[t].menus.forEach(function (m) { menusByRow[m._row] = m; }); });
-      var reload = function () { return self.render(el, r); };
+      var reload = function () { App.changed('meals'); return self.render(el, r); };
       App.$('#prev').onclick = function () { App.go('day/' + App.addDays(date, -1)); };
       App.$('#next').onclick = function () { App.go('day/' + App.addDays(date, 1)); };
       App.$('#pick').onchange = function (e) { if (e.target.value) App.go('day/' + e.target.value); };
@@ -144,7 +148,7 @@ App.menuEditor = function (m, onSaved) {
         var payload = { _row: m._row || null, date: App.$('#me-date', el).value, mealType: App.$('#me-type', el).value, name: App.$('#me-name', el).value.trim(), codes: sel, checkedNone: App.$('#me-none', el).checked };
         if (!payload.name) { App.$('#me-err', el).textContent = '메뉴명을 입력하세요'; return; }
         App.busy(btn, true);
-        App.api('apiSaveMenu', payload).then(function () { App.toast('저장했습니다', 'ok'); api.close(); if (onSaved) onSaved(); })
+        App.api('apiSaveMenu', payload).then(function () { App.changed('meals'); App.toast('저장했습니다', 'ok'); api.close(); if (onSaved) onSaved(); })
           .catch(function (e) { App.$('#me-err', el).textContent = e.message; App.busy(btn, false); });
       });
     },

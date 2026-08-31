@@ -110,6 +110,42 @@ var App = (function () {
     return api('apiDownloadXlsx', kind, params || {}).then(function (r) { download(r); toast(r.filename + ' 다운로드', 'ok'); })
       .catch(function (e) { toast('다운로드 실패: ' + e.message, 'danger'); }).then(function () { busy(btn, false); });
   }
+  // ---------- 클라이언트 데이터 캐시 (세션 동안 메모리 유지) ----------
+  var dataCache = {};
+  /** key 에 캐시가 있으면 즉시 반환, 없으면 loader() 결과를 저장. force=true 면 새로 받음 */
+  function cached(key, loader, force) {
+    if (!force && Object.prototype.hasOwnProperty.call(dataCache, key)) return Promise.resolve(dataCache[key]);
+    return Promise.resolve(loader()).then(function (v) { dataCache[key] = v; return v; });
+  }
+  function cachePut(key, v) { dataCache[key] = v; }
+  /** prefixes 로 시작하는 키 삭제. 인자 없으면 전부 */
+  function invalidate(prefixes) {
+    if (!prefixes) { dataCache = {}; return; }
+    Object.keys(dataCache).forEach(function (k) {
+      if (prefixes.some(function (p) { return k.indexOf(p) === 0; })) delete dataCache[k];
+    });
+  }
+  /** 데이터 변경 종류별 무효화 */
+  var INVALIDATE = {
+    meals: ['dashboard', 'month:', 'day:', 'meals:'],
+    students: ['dashboard', 'month:', 'day:', 'students', 'meals:'],
+  };
+  function changed(kind) { invalidate(INVALIDATE[kind] || null); }
+  function prefetch(key, loader) { if (!Object.prototype.hasOwnProperty.call(dataCache, key)) setTimeout(function () { cached(key, loader).catch(function () {}); }, 300); }
+
+  // ---------- 스켈레톤 ----------
+  function skeleton(kind) {
+    var stat = '<div class="card"><div class="sk sk-line" style="width:40%"></div><div class="sk" style="height:32px;width:55%;margin:10px 0"></div><div class="sk sk-line" style="width:70%"></div></div>';
+    var rows = function (n) { var s = ''; for (var i = 0; i < n; i++) s += '<div class="sk-row"><div class="sk"></div><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>'; return s; };
+    var head = '<div class="page-head"><div style="flex:1"><div class="sk sk-title"></div><div class="sk sk-line" style="width:30%"></div></div></div>';
+    if (kind === 'dashboard') return head + '<div class="grid cols-4" style="margin-bottom:16px">' + stat + stat + stat + stat + '</div><div class="card"><div class="sk sk-line" style="width:20%"></div><div class="week-strip">' + '<div class="sk" style="height:70px"></div>'.repeat(7) + '</div></div><div class="card"><div class="sk sk-line" style="width:25%"></div><div class="grid cols-2"><div>' + '<div class="sk" style="height:40px;margin:6px 0"></div>'.repeat(5) + '</div><div>' + '<div class="sk" style="height:56px;margin:8px 0"></div>'.repeat(3) + '</div></div></div>';
+    if (kind === 'calendar') return head + '<div class="card"><div class="cal-grid">' + '<div class="sk" style="height:18px"></div>'.repeat(7) + '<div class="sk sk-cell"></div>'.repeat(35) + '</div></div>';
+    if (kind === 'day') return head + '<div class="card"><div class="sk sk-line" style="width:20%"></div><div class="grid cols-2"><div>' + '<div class="sk" style="height:40px;margin:6px 0"></div>'.repeat(7) + '</div><div>' + '<div class="sk" style="height:56px;margin:8px 0"></div>'.repeat(3) + '</div></div></div>';
+    if (kind === 'stats-table') return head + '<div class="grid cols-3" style="margin-bottom:16px">' + stat + stat + stat + '</div><div class="card">' + rows(6) + '</div>';
+    if (kind === 'form') return head + '<div class="card"><div class="sk sk-line" style="width:20%"></div><div class="form-grid">' + '<div><div class="sk sk-line" style="width:35%"></div><div class="sk" style="height:36px"></div></div>'.repeat(4) + '</div></div><div class="card"><div class="sk sk-line" style="width:20%"></div><div class="form-grid">' + '<div><div class="sk sk-line" style="width:35%"></div><div class="sk" style="height:36px"></div></div>'.repeat(4) + '</div></div>';
+    return head + '<div class="card"><div class="sk sk-line" style="width:35%"></div>' + rows(8) + '</div>';
+  }
+
   function readFileBase64(file) {
     return new Promise(function (resolve, reject) {
       var fr = new FileReader();
@@ -136,9 +172,11 @@ var App = (function () {
       '<header class="topbar"><div class="topbar-inner">' +
       '<a class="brand" href="#/dashboard"><span class="logo">🍱</span><span>급식 알레르기</span>' + (school ? '<span class="school">' + h(school) + '</span>' : '') + '</a>' +
       '<nav class="nav">' + NAV.map(function (n) { return '<a href="#/' + n[0] + '" data-nav="' + n[0] + '">' + n[1] + '</a>'; }).join('') + '</nav>' +
+      '<button class="btn sm ghost no-print" id="refresh-btn" title="이 화면의 데이터를 서버에서 다시 받습니다">↻ 새로고침</button>' +
       '<button class="btn sm ghost no-print" id="logout-btn">로그아웃</button>' +
       '</div></header><main class="main" id="main"></main>';
-    $('#logout-btn').addEventListener('click', function () { api('apiLogout').catch(function () {}); setToken(null); renderLogin(); });
+    $('#logout-btn').addEventListener('click', function () { api('apiLogout').catch(function () {}); setToken(null); invalidate(); renderLogin(); });
+    $('#refresh-btn').addEventListener('click', function () { invalidate(); refreshBoot().then(renderRoute, renderRoute); });
   }
   function renderRoute() {
     if (!state.token || !state.boot) return;
@@ -148,7 +186,7 @@ var App = (function () {
     $$('[data-nav]').forEach(function (a) { a.classList.toggle('active', a.dataset.nav === r.name); });
     var view = views[r.name] || views.dashboard;
     var main = $('#main');
-    main.innerHTML = '<div class="loading"><span class="spinner"></span> 불러오는 중…</div>';
+    main.innerHTML = skeleton(view.skeleton || 'table');
     document.title = (view.title || '') + ' · 급식 알레르기 판별';
     Promise.resolve(view.render(main, r)).catch(function (e) {
       if (e.message === 'AUTH_REQUIRED') return;
@@ -175,9 +213,14 @@ var App = (function () {
       }).catch(function (e) { $('#login-err').textContent = e.message; busy(btn, false); });
     });
   }
+  /** 로그인 직후: 부트스트랩 + 대시보드 + 이번 달 달력을 한 번의 호출로 받아 캐시에 넣는다 */
   function boot() {
-    return api('apiBootstrap').then(function (b) { state.boot = b; renderLayout(); renderRoute(); })
-      .catch(function (e) { if (e.message !== 'AUTH_REQUIRED') { setToken(null); renderLogin(e.message); } });
+    return api('apiInit').then(function (r) {
+      state.boot = r.boot;
+      cachePut('dashboard', r.dashboard);
+      if (r.month) cachePut('month:' + r.month.ym, r.month);
+      renderLayout(); renderRoute();
+    }).catch(function (e) { if (e.message !== 'AUTH_REQUIRED') { setToken(null); renderLogin(e.message); } });
   }
   function refreshBoot() { return api('apiBootstrap').then(function (b) { state.boot = b; return b; }); }
   function start() {
@@ -205,6 +248,7 @@ var App = (function () {
 
   return { start: start, api: api, views: views, state: state, h: h, $: $, $$: $$, toast: toast, modal: modal, confirm: confirmDialog, busy: busy,
     fmtDate: fmtDate, fmtDateLong: fmtDateLong, addDays: addDays, addMonths: addMonths, today: today, dow: dow, DAYS: DAYS,
-    allergenName: allergenName, codeTags: codeTags, menuBadges: menuBadges, downloadXlsx: downloadXlsx, readFileBase64: readFileBase64, go: go, refreshBoot: refreshBoot, pad: pad };
+    allergenName: allergenName, codeTags: codeTags, menuBadges: menuBadges, downloadXlsx: downloadXlsx, readFileBase64: readFileBase64, go: go, refreshBoot: refreshBoot, pad: pad,
+    cached: cached, cachePut: cachePut, invalidate: invalidate, changed: changed, prefetch: prefetch, skeleton: skeleton };
 })();
 </script>
