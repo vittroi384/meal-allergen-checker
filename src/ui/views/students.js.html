@@ -32,14 +32,15 @@ App.views.students = {
         '<select id="grade"><option value="">전체 학년</option>' + Object.keys(grades).sort(function (a, b) { return a - b; }).map(function (g) { return '<option value="' + g + '"' + (String(filter.grade) === g ? ' selected' : '') + '>' + g + '학년</option>'; }).join('') + '</select>' +
         '<select id="class"><option value="">전체 반</option>' + Object.keys(classes).sort(function (a, b) { return a - b; }).map(function (c) { return '<option value="' + c + '"' + (String(filter.classNo) === c ? ' selected' : '') + '>' + c + '반</option>'; }).join('') + '</select>' +
         '<label class="check"><input type="checkbox" id="active-only"' + (filter.activeOnly ? ' checked' : '') + '> 현재 학년도 사용 중만</label></div>' +
-        '<div class="table-wrap"><table><thead><tr><th class="nowrap">학년-반</th><th>이름</th><th>담임</th><th>알레르기</th><th>기타</th><th>학부모알림</th><th>비고</th><th class="center">사용</th><th></th></tr></thead><tbody>' +
+        '<div class="table-wrap"><table><thead><tr><th>학년-반</th><th>이름</th><th>담임</th><th>알레르기</th><th>기타</th><th>학부모알림</th><th>비고</th><th class="center">사용</th><th></th></tr></thead><tbody>' +
         (list.length ? list.map(function (s) {
           var tconf = s.teacher && s.teacher.conflict;
-          return '<tr' + (s.active ? '' : ' style="opacity:.55"') + '><td class="nowrap">' + s.grade + '-' + s.classNo + (s.schoolYear && s.schoolYear !== data.schoolYear ? ' <span class="badge gray">' + s.schoolYear + '</span>' : '') + '</td><td><b>' + h(s.name) + '</b></td>' +
-            '<td class="small nowrap">' + (s.teacherName || s.teacherPhone ? h(s.teacherName) + (s.teacherPhone ? '<br><span class="muted">' + h(s.teacherPhone) + '</span>' : '') : '<span class="muted">미등록</span>') + (tconf ? ' <span class="badge warn tiny" title="같은 반의 담임 정보가 서로 다릅니다">불일치</span>' : '') + '</td>' +
-            '<td>' + App.codeTags(s.codes) + '</td><td>' + s.keywords.map(function (k) { return '<span class="tag kw">' + h(k) + '</span>'; }).join('') + '</td>' +
-            '<td>' + (s.parentNotify === '없음' ? '<span class="muted">없음</span>' : '<span class="badge blue">' + h(s.parentNotify) + '</span> <span class="small muted">' + h(s.parentNotify === '문자' ? s.parentPhone : s.parentEmail) + '</span>') + '</td>' +
-            '<td class="small">' + h(s.note) + '</td><td class="center">' + (s.active ? '<span class="badge ok">사용</span>' : '<span class="badge gray">중지</span>') + '</td>' +
+          var contact = s.parentNotify === '문자' ? s.parentPhone : s.parentEmail;
+          return '<tr' + (s.active ? '' : ' style="opacity:.55"') + '><td>' + s.grade + '-' + s.classNo + (s.schoolYear && s.schoolYear !== data.schoolYear ? ' <span class="badge gray">' + s.schoolYear + '</span>' : '') + '</td><td class="name">' + h(s.name) + '</td>' +
+            '<td>' + (s.teacherName || s.teacherPhone ? h(s.teacherName) + (s.teacherPhone ? '<span class="sub-contact">' + h(s.teacherPhone) + '</span>' : '') : '<span class="muted">미등록</span>') + (tconf ? ' <span class="badge warn tiny" title="같은 반의 담임 정보가 서로 다릅니다">불일치</span>' : '') + '</td>' +
+            '<td class="chips">' + App.codeTags(s.codes) + '</td><td class="chips">' + s.keywords.map(function (k) { return '<span class="tag kw">' + h(k) + '</span>'; }).join('') + '</td>' +
+            '<td>' + (s.parentNotify === '없음' ? '<span class="muted">없음</span>' : '<span class="badge blue">' + h(s.parentNotify) + '</span><span class="sub-contact">' + h(contact) + '</span>') + '</td>' +
+            '<td class="wrap small">' + h(s.note) + '</td><td class="center">' + (s.active ? '<span class="badge ok">사용</span>' : '<span class="badge gray">중지</span>') + '</td>' +
             '<td class="nowrap"><button class="btn sm ghost" data-edit="' + s._row + '">수정</button><button class="btn sm ghost" data-toggle="' + s._row + '" data-active="' + (s.active ? 1 : 0) + '">' + (s.active ? '중지' : '사용') + '</button></td></tr>';
         }).join('') : '<tr><td colspan="9" class="empty">' + (all.length ? '조건에 맞는 학생이 없습니다' : '등록된 학생이 없습니다. "학생 추가" 또는 "일괄 업로드"로 시작하세요.') + '</td></tr>') +
         '</tbody></table></div></div>';
@@ -162,7 +163,8 @@ App.uploadModal = function (cfg) {
               var badge = r.status === '오류' ? 'danger' : r.status === '추가' ? 'ok' : r.status === '수정' ? 'blue' : 'gray';
               var detail = r.status === '오류' ? '<span class="error-text">' + h(r.errors.join('; ')) + '</span>' : r.status === '수정' ? '<span class="small muted">변경: ' + h(r.changedFields.map(cfg.fieldLabel || function (f) { return f; }).join(', ')) + '</span>' : '';
               if (r.warnings && r.warnings.length) detail += (detail ? '<br>' : '') + '<span class="small" style="color:var(--warn)">⚠ ' + h(r.warnings.join(' / ')) + '</span>';
-              return '<tr class="' + cls + '"><td>' + r._row + '</td><td><span class="badge ' + badge + '">' + r.status + '</span></td>' + cfg.columns(r).map(function (c) { return '<td>' + c + '</td>'; }).join('') + '<td>' + detail + '</td></tr>';
+              var classes = cfg.colClasses || [];
+              return '<tr class="' + cls + '"><td>' + r._row + '</td><td><span class="badge ' + badge + '">' + r.status + '</span></td>' + cfg.columns(r).map(function (c, i) { return '<td class="' + (classes[i] || '') + '">' + c + '</td>'; }).join('') + '<td class="wrap">' + detail + '</td></tr>';
             }).join('') + '</tbody></table></div>';
           App.$('#pv-filter', el).onchange = function () { filterMode = this.value; draw(); };
         }
@@ -210,7 +212,8 @@ App.studentUpload = function (onDone) {
     pasteHint: '헤더가 없으면 학생 시트 열 순서(학년도, 학년, 반, 이름, 담임이름, 담임전화번호, 알레르기코드, 기타알레르기, 비고, 학부모이메일, 학부모연락처, 학부모알림, 사용여부)로 간주합니다',
     previewApi: 'apiPreviewStudentUpload', applyApi: 'apiApplyStudentUpload',
     headers: ['학년-반', '이름', '담임', '알레르기', '기타', '학부모알림'],
-    columns: function (r) { var st = r.student; return [(st.grade || '?') + '-' + (st.classNo || '?'), h(st.name), h([st.teacherName, st.teacherPhone].filter(Boolean).join(' ')), App.codeTags(st.codes), h(st.keywords.join(', ')), h(st.parentNotify)]; },
+    colClasses: ['', 'name', '', 'chips', 'chips', ''],
+    columns: function (r) { var st = r.student; return [(st.grade || '?') + '-' + (st.classNo || '?'), h(st.name), h([st.teacherName, st.teacherPhone].filter(Boolean).join(' ')), App.codeTags(st.codes), st.keywords.map(function (k) { return '<span class="tag kw">' + h(k) + '</span>'; }).join(''), h(st.parentNotify)]; },
     fieldLabel: function (f) { return { teacherName: '담임이름', teacherPhone: '담임전화번호', codes: '알레르기코드', keywords: '기타알레르기', note: '비고', parentEmail: '학부모이메일', parentPhone: '학부모연락처', parentNotify: '학부모알림', active: '사용여부' }[f] || f; },
     onDone: onDone,
   });
