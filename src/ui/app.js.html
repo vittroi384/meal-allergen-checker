@@ -86,6 +86,35 @@ var App = (function () {
     });
   }
   /**
+   * 작은 드롭다운 메뉴 (행의 "···" 더보기 등). anchor 아래 오른쪽 정렬로 띄우고, 바깥 클릭·Esc·스크롤·리사이즈에 닫힌다. 한 번에 하나만.
+   * items: [{ label, danger?, onClick }]
+   */
+  var openDropdown = null;
+  function closeDropdown() { if (openDropdown) { openDropdown.el.remove(); document.removeEventListener('click', openDropdown.onDoc, true); document.removeEventListener('keydown', openDropdown.onKey); window.removeEventListener('scroll', closeDropdown, true); window.removeEventListener('resize', closeDropdown); openDropdown = null; } }
+  function dropdown(anchor, items) {
+    if (openDropdown && openDropdown.anchor === anchor) { closeDropdown(); return null; }
+    closeDropdown();
+    var el = document.createElement('div');
+    el.className = 'dropdown';
+    el.innerHTML = items.map(function (it, i) { return '<button type="button" data-i="' + i + '"' + (it.danger ? ' class="danger"' : '') + '>' + h(it.label) + '</button>'; }).join('');
+    document.body.appendChild(el);
+    var r = anchor.getBoundingClientRect();
+    var w = el.offsetWidth, hh = el.offsetHeight;
+    var left = Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w));
+    var top = r.bottom + 4 + hh > window.innerHeight ? r.top - hh - 4 : r.bottom + 4;
+    el.style.left = (left + window.scrollX) + 'px';
+    el.style.top = (top + window.scrollY) + 'px';
+    el.addEventListener('click', function (e) { var b = e.target.closest('button[data-i]'); if (!b) return; e.stopPropagation(); closeDropdown(); items[Number(b.dataset.i)].onClick(); });
+    var onDoc = function (e) { if (!el.contains(e.target) && e.target !== anchor && !anchor.contains(e.target)) closeDropdown(); };
+    var onKey = function (e) { if (e.key === 'Escape') closeDropdown(); };
+    setTimeout(function () { document.addEventListener('click', onDoc, true); }, 0);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', closeDropdown, true);
+    window.addEventListener('resize', closeDropdown);
+    openDropdown = { el: el, anchor: anchor, onDoc: onDoc, onKey: onKey };
+    return el;
+  }
+  /**
    * 화면 컨테이너에 위임 이벤트 핸들러를 "교체" 방식으로 건다.
    * 화면을 다시 그릴 때마다 addEventListener 를 반복하면 핸들러가 누적되어 클릭 한 번에 여러 번 실행되므로(모달 중복 버그) 반드시 이 함수를 쓴다.
    */
@@ -314,7 +343,7 @@ var App = (function () {
       return apiNoAuth('apiCheckSession', t).then(function (r) { if (r.ok) return boot(); setToken(null); renderLogin(); });
     }).catch(function (e) { $('#app').innerHTML = '<div class="login-wrap"><div class="card"><div class="notice danger">앱을 시작하지 못했습니다: ' + h(e.message) + '</div></div></div>'; });
   }
-  return { start: start, api: api, apiNoAuth: apiNoAuth, loginPanel: loginPanel, views: views, state: state, h: h, $: $, $$: $$, toast: toast, modal: modal, confirm: confirmDialog, on: on, busy: busy,
+  return { start: start, api: api, apiNoAuth: apiNoAuth, loginPanel: loginPanel, views: views, state: state, h: h, $: $, $$: $$, toast: toast, modal: modal, confirm: confirmDialog, dropdown: dropdown, closeDropdown: closeDropdown, on: on, busy: busy,
     fmtDate: fmtDate, fmtDateLong: fmtDateLong, addDays: addDays, addMonths: addMonths, today: today, dow: dow, DAYS: DAYS,
     allergenName: allergenName, codeTags: codeTags, menuBadges: menuBadges, downloadXlsx: downloadXlsx, readFileBase64: readFileBase64, go: go, rerender: renderRoute, refreshBoot: refreshBoot, pad: pad,
     cached: cached, cachePut: cachePut, invalidate: invalidate, changed: changed, prefetch: prefetch, skeleton: skeleton };

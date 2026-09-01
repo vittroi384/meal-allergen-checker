@@ -246,10 +246,22 @@
   .aff-body { display: none; flex-direction: column; gap: 6px; padding: 6px; border-top: 1px solid var(--border); }
   .aff-group.open .aff-body { display: flex; }
   .tag.more { background: #e5e7eb; color: #374151; }
-  /* 메뉴 행: 수정·삭제는 hover 또는 행 클릭(.active) 때만, "확인함"(.ops.always)은 항상 */
-  .menu-item .ops.hover { opacity: 0; pointer-events: none; transition: opacity .12s; }
-  .menu-item:hover .ops.hover, .menu-item.active .ops.hover { opacity: 1; pointer-events: auto; }
-  .menu-item .ops.always:empty { display: none; }
+  /* 날짜 상세 메뉴 행(.menu-item.row): 행 전체 클릭 = 수정, 오른쪽 끝 "···" 고정, 배지 열 폭 고정 → 버튼 유무와 무관하게 행 모양 동일 */
+  .menu-item.row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(72px, auto) 28px; align-items: center; gap: 10px; min-height: 44px; padding: 6px 6px 6px 12px; cursor: pointer; transition: background .12s, border-color .12s; }
+  .menu-item.row:hover { background: #f8fafc; border-color: #cbd5e1; }
+  .menu-item.row.needs:hover { background: #fef3c7; }
+  .menu-item.row.pending { opacity: .5; pointer-events: none; }
+  .menu-item.row .tags { justify-content: flex-end; }
+  .menu-item.row .badges { display: flex; justify-content: flex-end; gap: 4px; }
+  .menu-item.row .badges:empty::before { content: ''; }
+  .badge.clickable { border: 0; cursor: pointer; font: inherit; font-size: 11.5px; font-weight: 700; line-height: inherit; }
+  .badge.clickable:hover { filter: brightness(.94); box-shadow: 0 0 0 2px #fde68a; }
+  .menu-item .more-btn { width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 16px; font-weight: 800; line-height: 1; letter-spacing: 1px; cursor: pointer; padding: 0; }
+  .menu-item .more-btn:hover { background: #e5e7eb; color: var(--text); }
+  .dropdown { position: absolute; z-index: 60; min-width: 150px; background: #fff; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 30px rgba(15,23,42,.14); padding: 4px; }
+  .dropdown button { display: block; width: 100%; text-align: left; padding: 8px 12px; border: 0; border-radius: 6px; background: none; font: inherit; font-size: 13.5px; color: var(--text); cursor: pointer; white-space: nowrap; }
+  .dropdown button:hover { background: #f3f4f6; }
+  .dropdown button.danger { color: var(--danger); }
   /* 목록 상단 고정 헤더 + 내부 스크롤 (약 6명 높이) */
   .list-box { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
   .list-head { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; font-weight: 700; color: #374151; padding: 8px 12px; background: #f9fafb; border-bottom: 1px solid var(--border); }
