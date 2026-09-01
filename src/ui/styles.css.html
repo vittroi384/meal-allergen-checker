@@ -309,17 +309,17 @@
   .board-head .loading { font-size: 22px; color: #94a3b8; }
   .board-view { flex: 1 1 auto; overflow: hidden; position: relative; margin: 0 32px; }
   /* 두 레이어를 겹쳐 두고 opacity 로 크로스페이드 */
-  /* 전역 N열 그리드(--cols). 반 그룹은 학생 수만큼 열을 차지(--span)하고, 남는 열은 다음 반이 채운다 → 카드 폭은 항상 열 폭으로 동일 */
-  .board-flow { position: absolute; left: 0; right: 0; top: 0; padding: 14px 0 20px; opacity: 0; transition: opacity 1s ease; pointer-events: none;
-                display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); grid-auto-flow: dense; gap: 14px 10px; align-items: start; }
+  /* 행 = 반. 왼쪽 고정 200px(학년-반 크게 + 담임 작게), 오른쪽에 이름 카드 가로 나열(넘치면 행 안에서 줄바꿈), 행 구분선 */
+  .board-flow { position: absolute; left: 0; right: 0; top: 0; padding: 4px 0 20px; opacity: 0; transition: opacity 1s ease; pointer-events: none; }
   .board-flow.show { opacity: 1; }
-  .bg { grid-column: span var(--span, 1); min-width: 0; }
-  /* 반 헤더: 한 줄, 카드보다 확실히 작고 가늘게 */
-  .bg-head { font-size: var(--gh); font-weight: 500; color: #94a3b8; line-height: 1.2; margin: 0 0 8px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  /* 카드: 그룹 안에서도 열 폭 그대로(--span 열), 전부 같은 크기, 단일 스타일 */
-  .bg-grid { display: grid; grid-template-columns: repeat(var(--span, 1), minmax(0, 1fr)); gap: 10px; }
-  .bc { height: var(--ch); display: flex; align-items: center; padding: 0 22px; box-sizing: border-box; background: #1e293b; border: 1px solid #3b4a63; border-radius: 14px; min-width: 0;
-        color: #ffffff; font-size: var(--nm); font-weight: 900; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.5px; text-shadow: 0 2px 6px rgba(0,0,0,.5); }
+  .br { display: flex; align-items: center; gap: 12px; padding: var(--rp, 10px) 0; border-bottom: 1px solid rgba(255,255,255,.12); }
+  .br:last-child { border-bottom: 0; }
+  .br-cls { flex: 0 0 200px; width: 200px; padding-left: 6px; }
+  .br-cls .cls { font-size: var(--cls, 64px); font-weight: 900; line-height: 1; color: #ffffff; letter-spacing: -1px; }
+  .br-cls .tch { font-size: var(--tch, 20px); font-weight: 500; color: #94a3b8; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .br-cards { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; gap: 10px; align-content: flex-start; }
+  .bc { width: var(--cw, 300px); height: var(--ch, 90px); display: flex; align-items: center; justify-content: center; padding: 0 16px; box-sizing: border-box; background: #1e293b; border: 1px solid #3b4a63; border-radius: 14px;
+        color: #ffffff; font-size: var(--nm, 56px); font-weight: 900; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.5px; text-shadow: 0 2px 6px rgba(0,0,0,.5); }
   .board-msg { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px; text-align: center; padding: 20px; word-break: keep-all; }
   .board-msg .big { font-size: 104px; font-weight: 900; line-height: 1.1; }
   .board-msg .big.ok { color: #34d399; }

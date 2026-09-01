@@ -1,11 +1,10 @@
 <script>
 /**
- * 전광판 모드 (#/board): 오늘 해당 학생 이름만 큰 글씨로 전체 화면.
- * - 카드는 이름만, 단일 스타일, 같은 크기. 열 수는 학생 수로 고정: ≤10명 2열, 11~20명 3열, 21명~ 4열
- * - 반별 그룹(헤더 한 줄 작게: "1학년 1반 · 담임 OOO · n명")
- * - 세로로 한 화면에 들어가는 가장 큰 글자 배율을 측정으로 선택. 최소 배율에서도 안 들어가면(30명 초과 등) 그룹 단위 페이지 전환 — 10초 간격, 1초 크로스페이드
- * - 5분마다 다시 받아 바뀐 그룹만 교체 (전체 리렌더 없음). Esc 또는 구석의 작은 버튼으로 나가기
- * - 대시보드 API(apiDashboard) 데이터를 그대로 사용
+ * 전광판 모드 (#/board): 오늘 해당 학생을 반 단위 행으로 전체 화면 표시.
+ * - 행 = 반. 왼쪽 고정 200px 에 "1-1" 크게 + "담임 OOO" 작게, 오른쪽에 그 반 학생 이름 카드(같은 크기)를 가로로 나열, 넘치면 행 안에서 줄바꿈
+ * - 반은 학년-반 순. 화면 높이에 맞는 가장 큰 글자 배율을 측정으로 선택, 최소 배율에서도 넘치면 행 단위 페이지 전환(10초, 1초 크로스페이드)
+ * - 5분마다 다시 받아 바뀐 행만 교체. Esc 또는 구석 버튼으로 나가기
+ * - #/board?demo=normal|none|nomeal|paging : 가상 데이터로 화면 확인 (서버 호출 없음, 상태 표시에 "데모")
  */
 App.views.board = {
   title: '전광판',
@@ -13,18 +12,15 @@ App.views.board = {
   FLIP_MS: 10000,
   FADE_MS: 1000,
   REFRESH_MS: 5 * 60 * 1000,
-  // 글자 배율 후보 (큰 것부터). 이름 58px 기준
   SCALES: [1.7, 1.55, 1.4, 1.25, 1.12, 1.0, 0.9, 0.82, 0.74, 0.66, 0.6, 0.55, 0.5, 0.45],
-  CARD_GAP: 10,
 
-  colsFor: function (total) { return total <= 10 ? 2 : total <= 20 ? 3 : 4; },
-
-  render: function (el) {
+  render: function (el, route) {
     var self = this;
     var h = App.h;
     self.leave();
     document.body.classList.add('board-mode');
     self.page = 0; self.pages = [0]; self.lastHead = ''; self.lastMode = ''; self.data = null; self.flipping = false; self.fitted = false;
+    self.demo = route && route.params && route.params.demo ? String(route.params.demo) : '';
     self._timers = [];
     el.innerHTML =
       '<div class="board" id="board">' +
@@ -50,7 +46,9 @@ App.views.board = {
     window.addEventListener('resize', self._onResize);
 
     var load = function (force) {
-      var p = force
+      var p;
+      if (self.demo) p = Promise.resolve(self.demoData(self.demo));
+      else p = force
         ? App.api('apiDashboard').then(function (d) { App.cachePut('dashboard', d); return d; })
         : App.cached('dashboard', function () { return App.api('apiDashboard'); });
       return p.then(function (d) { self.data = d; self.loadedAt = new Date(); self.draw(); })
@@ -59,7 +57,7 @@ App.views.board = {
           self.status();
         });
     };
-    self._timers.push(setInterval(function () { load(true); }, self.REFRESH_MS));
+    if (!self.demo) self._timers.push(setInterval(function () { load(true); }, self.REFRESH_MS));
     self._timers.push(setInterval(function () { self.tickClock(); }, 15 * 1000));
     return load(false).then(function () {
       // 첫 그리기 직후에는 글꼴·레이아웃이 확정되기 전에 측정될 수 있어 잠시 후 한 번 더 맞춘다
@@ -79,6 +77,31 @@ App.views.board = {
     if (self._onResize) { window.removeEventListener('resize', self._onResize); self._onResize = null; }
   },
 
+  /** 데모 데이터 (가상 이름). apiDashboard 응답과 같은 모양 */
+  demoData: function (kind) {
+    var today = App.today();
+    var label = App.fmtDateLong(today);
+    var SUR = ['김', '이', '박', '최', '정', '강', '조', '윤', '장', '임', '남궁', '선우'];
+    var GIV = ['하늘', '서준', '하린', '도윤', '은우', '시우', '건우', '민준', '유나', '채원', '다은', '지호', '수아', '예준', '민서', '지우'];
+    var CLASSES = [[1, 1], [1, 2], [2, 1], [2, 2], [3, 1], [3, 3], [4, 1], [4, 2], [5, 1], [6, 1], [6, 2]];
+    var TEACHERS = ['박정우', '최은정', '정민호', '한소희', '장윤서', '김태양', '서준혁', '문경수', '오하늘', '신지민', '배수현'];
+    var n = kind === 'paging' ? 40 : (kind === 'none' || kind === 'nomeal') ? 0 : 12;
+    var classCount = Math.min(CLASSES.length, Math.max(3, Math.ceil(n / 2.4)));
+    var students = [];
+    for (var i = 0; i < n; i++) {
+      var ci = i % classCount;
+      students.push({ grade: CLASSES[ci][0], classNo: CLASSES[ci][1], name: SUR[i % SUR.length] + GIV[(i * 7) % GIV.length], teacher: { name: TEACHERS[ci], phone: '', conflict: false } });
+    }
+    students.sort(function (a, b) { return (a.grade - b.grade) || (a.classNo - b.classNo) || a.name.localeCompare(b.name, 'ko'); });
+    var affected = students.map(function (s) {
+      s.label = s.grade + '-' + s.classNo + ' ' + s.name;
+      return { student: s, items: [{ menu: '돈까스', reasons: ['밀'], text: '돈까스(밀)' }], text: '돈까스(밀)' };
+    });
+    var menus = kind === 'nomeal' ? [] : [{ name: '돈까스', codes: [6] }, { name: '쌀밥', codes: [] }];
+    return { today: today, todayLabel: label, mealTypes: ['중식'],
+      todayByType: { '중식': { menus: menus, affected: affected, count: affected.length, uncheckedMenus: [], protected: false } }, failures: [] };
+  },
+
   tickClock: function () {
     var c = App.$('#board-clock');
     if (c) { var d = new Date(); c.textContent = App.pad(d.getHours()) + ':' + App.pad(d.getMinutes()); }
@@ -88,13 +111,14 @@ App.views.board = {
     var s = App.$('#board-status');
     if (!s) return;
     var parts = [];
-    if (this.loadedAt) parts.push('갱신 ' + App.pad(this.loadedAt.getHours()) + ':' + App.pad(this.loadedAt.getMinutes()));
+    if (this.demo) parts.push('데모 데이터(' + this.demo + ')');
+    else if (this.loadedAt) parts.push('갱신 ' + App.pad(this.loadedAt.getHours()) + ':' + App.pad(this.loadedAt.getMinutes()));
     if (this.pages && this.pages.length > 1) parts.push((this.page + 1) + '/' + this.pages.length);
     parts.push('Esc 나가기');
     s.textContent = parts.join(' · ');
   },
 
-  /** 데이터 → 화면. 바뀐 부분만 DOM 에 반영한다 */
+  /** 데이터 → 화면. 바뀐 행만 DOM 에 반영한다 */
   draw: function () {
     var self = this;
     var h = App.h;
@@ -118,9 +142,7 @@ App.views.board = {
     var msg = App.$('#board-msg');
     var mode = !types.length ? 'nomeal' : (!total ? 'none' : 'list');
     if (mode !== 'list') {
-      var msgHtml = (mode === 'nomeal'
-        ? '<div class="big muted">급식 없음</div>'
-        : '<div class="big ok">오늘 해당 학생 없음</div>') +
+      var msgHtml = (mode === 'nomeal' ? '<div class="big muted">급식 없음</div>' : '<div class="big ok">오늘 해당 학생 없음</div>') +
         '<div class="date">' + h(d.todayLabel) + (types.length ? ' · ' + h(types.join(' · ')) : '') + '</div>';
       if (msg.innerHTML !== msgHtml) msg.innerHTML = msgHtml;
       msg.hidden = false;
@@ -135,64 +157,61 @@ App.views.board = {
     if (self.lastMode !== 'list') self.cur.classList.add('show');
     self.lastMode = mode;
 
-    // ---- 그룹(끼니 × 반) 계산
-    var groups = [];
+    // ---- 행(끼니 × 반) 계산 — 학년-반 순
+    var rows = [];
     types.forEach(function (t) {
       var r = d.todayByType[t];
       if (!r.count) return;
       var byClass = {};
-      var order = [];
       r.affected.forEach(function (a) {
         var st = a.student;
         var key = t + '|' + st.grade + '|' + st.classNo;
-        if (!byClass[key]) { byClass[key] = { key: key, grade: st.grade, classNo: st.classNo, type: t, teacher: '', names: [] }; order.push(key); }
+        if (!byClass[key]) byClass[key] = { key: key, grade: st.grade, classNo: st.classNo, type: t, teacher: '', names: [] };
         var g = byClass[key];
         if (!g.teacher && st.teacher && st.teacher.name) g.teacher = st.teacher.name;
-        g.names.push(st.label);
+        g.names.push(st.name);
       });
-      order.forEach(function (k) {
-        var g = byClass[k];
-        var head = (types.length > 1 ? h(t) + ' · ' : '') + g.grade + '학년 ' + g.classNo + '반' + (g.teacher ? ' · 담임 ' + h(g.teacher) : '') + ' · ' + g.names.length + '명';
-        g.inner = '<div class="bg-head">' + head + '</div><div class="bg-grid">' + g.names.map(function (n) { return '<div class="bc">' + h(n) + '</div>'; }).join('') + '</div>';
-        g.sig = g.inner;
-        groups.push(g);
-      });
+      Object.keys(byClass).map(function (k) { return byClass[k]; })
+        .sort(function (a, b) { return (a.grade - b.grade) || (a.classNo - b.classNo); })
+        .forEach(function (g) {
+          g.inner = '<div class="br-cls"><div class="cls">' + g.grade + '-' + g.classNo + '</div>' +
+            '<div class="tch">' + (types.length > 1 ? h(t) + ' · ' : '') + (g.teacher ? '담임 ' + h(g.teacher) : g.names.length + '명') + '</div></div>' +
+            '<div class="br-cards">' + g.names.map(function (n) { return '<div class="bc">' + h(n) + '</div>'; }).join('') + '</div>';
+          g.sig = g.inner;
+          rows.push(g);
+        });
     });
 
-    // ---- 바뀐 그룹만 교체
+    // ---- 바뀐 행만 교체
     var flow = self.cur;
     var existing = {};
     Array.prototype.forEach.call(flow.children, function (k) { existing[k.dataset.key] = k; });
     var changed = false;
-    groups.forEach(function (g, i) {
+    rows.forEach(function (g, i) {
       var elG = existing[g.key];
-      if (!elG) { elG = document.createElement('section'); elG.className = 'bg'; elG.dataset.key = g.key; changed = true; }
+      if (!elG) { elG = document.createElement('section'); elG.className = 'br'; elG.dataset.key = g.key; changed = true; }
       else delete existing[g.key];
-      if (elG.dataset.sig !== g.sig) { elG.innerHTML = g.inner; elG.dataset.sig = g.sig; elG.dataset.n = String(g.names.length); changed = true; }
+      if (elG.dataset.sig !== g.sig) { elG.innerHTML = g.inner; elG.dataset.sig = g.sig; changed = true; }
       if (flow.children[i] !== elG) { flow.insertBefore(elG, flow.children[i] || null); changed = true; }
     });
     Object.keys(existing).forEach(function (k) { existing[k].remove(); changed = true; });
-    if (total !== self.studentCount) changed = true;
+    var longest = 2;
+    rows.forEach(function (g) { g.names.forEach(function (n) { if (n.length > longest) longest = n.length; }); });
+    self.longestName = Math.min(longest, 6);
     self.studentCount = total;
     if (changed || !self.fitted) self.fit();
     else self.status();
   },
 
-  /** 열 수는 학생 수로 고정, 세로로 한 화면에 들어가는 가장 큰 배율 선택 → 안 들어가면 그룹 단위 페이지 */
+  /** 화면 높이에 들어가는 가장 큰 배율 선택 → 최소 배율에서도 넘치면 행 단위 페이지 */
   fit: function () {
     var self = this;
     var board = App.$('#board'), view = App.$('#board-view'), flow = self.cur;
     if (!board || !view || !flow || self.lastMode !== 'list') return;
-    var availH = view.clientHeight, availW = view.clientWidth;
-    var cols = self.colsFor(self.studentCount || 0);
-    board.style.setProperty('--cols', String(cols));
-    // 반 그룹은 학생 수만큼만 열을 차지(최대 열 수). 남는 열에는 다음 반이 이어져 들어간다 (grid-auto-flow: dense)
-    Array.prototype.forEach.call(flow.children, function (g) {
-      g.style.setProperty('--span', String(Math.min(cols, Math.max(1, Number(g.dataset.n) || 1))));
-    });
+    var availH = view.clientHeight;
     var best = null;
     for (var i = 0; i < self.SCALES.length; i++) {
-      self.applyScale(board, self.SCALES[i], cols, availW);
+      self.applyScale(board, self.SCALES[i]);
       if (flow.scrollHeight <= availH) { best = self.SCALES[i]; break; }
     }
     if (self._flipTimer) { clearInterval(self._flipTimer); self._flipTimer = null; }
@@ -202,23 +221,24 @@ App.views.board = {
       self.alt.innerHTML = '';
       self.status();
     } else {
-      self.applyScale(board, self.SCALES[self.SCALES.length - 1], cols, availW);
+      self.applyScale(board, self.SCALES[self.SCALES.length - 1]);
       self.paginate();
     }
     self.fitted = true;
   },
 
-  /** 배율 → 글자·카드 크기. 이름이 열 폭 안에 들어가도록 상한("1-1 남궁민수" ≈ 6.1em → 7.2em 기준) */
-  applyScale: function (board, s, cols, availW) {
-    var colW = (availW - this.CARD_GAP * (cols - 1)) / cols;
-    var nm = Math.min(Math.round(58 * s), Math.floor((colW - 44) / 7.2));
-    nm = Math.max(nm, 20);
+  /** 배율 → 글자·카드 크기. 카드 폭은 가장 긴 이름 기준으로 전부 동일 */
+  applyScale: function (board, s) {
+    var nm = Math.max(20, Math.round(56 * s));
     board.style.setProperty('--nm', nm + 'px');
-    board.style.setProperty('--ch', Math.round(nm * 1.65) + 'px');
-    board.style.setProperty('--gh', Math.max(14, Math.round(nm * 0.4)) + 'px');
+    board.style.setProperty('--cw', Math.round(nm * ((this.longestName || 3) + 0.6) + 36) + 'px');
+    board.style.setProperty('--ch', Math.round(nm * 1.6) + 'px');
+    board.style.setProperty('--cls', Math.round(nm * 1.15) + 'px');
+    board.style.setProperty('--tch', Math.max(13, Math.round(nm * 0.42)) + 'px');
+    board.style.setProperty('--rp', Math.max(6, Math.round(nm * 0.22)) + 'px');
   },
 
-  /** 그룹 단위 페이지 경계 (그룹은 블록 배치라 offsetTop 이 순서대로 증가) */
+  /** 행 단위 페이지 경계 */
   paginate: function () {
     var self = this;
     var view = App.$('#board-view'), flow = self.cur;
@@ -226,9 +246,7 @@ App.views.board = {
     if (!view || !flow) return;
     var avail = view.clientHeight;
     var pages = [0], start = 0;
-    // dense 배치라 DOM 순서와 화면 순서가 다를 수 있어 세로 위치로 정렬해 행 단위 경계를 찾는다
-    var kids = Array.prototype.slice.call(flow.children).sort(function (a, b) { return a.offsetTop - b.offsetTop; });
-    kids.forEach(function (k) {
+    Array.prototype.forEach.call(flow.children, function (k) {
       var top = k.offsetTop, bottom = top + k.offsetHeight;
       if (bottom - start > avail && top > start) { start = top; pages.push(top); }
     });
