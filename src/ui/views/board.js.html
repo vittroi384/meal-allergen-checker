@@ -13,7 +13,10 @@ App.views.board = {
   FADE_MS: 1000,
   REFRESH_MS: 5 * 60 * 1000,
   // 카드 배율 후보 (큰 것부터). 카드 320×96, 이름 58px 기준
-  SCALES: [1.7, 1.55, 1.4, 1.25, 1.12, 1.0, 0.9, 0.82, 0.74, 0.66, 0.6, 0.55],
+  SCALES: [1.7, 1.55, 1.4, 1.25, 1.12, 1.0, 0.9, 0.82, 0.74, 0.66, 0.6, 0.55, 0.5, 0.45],
+  MAX_COLS: 4,
+  COL_GAP: 28,
+  CARD_GAP: 10,
   GRADE_COLORS: ['#60a5fa', '#34d399', '#fbbf24', '#f472b6', '#a78bfa', '#fb923c', '#2dd4bf', '#f87171'],
 
   render: function (el) {
@@ -58,7 +61,11 @@ App.views.board = {
     };
     self._timers.push(setInterval(function () { load(true); }, self.REFRESH_MS));
     self._timers.push(setInterval(function () { self.tickClock(); }, 15 * 1000));
-    return load(false);
+    return load(false).then(function () {
+      // 첫 그리기 직후에는 글꼴·레이아웃이 확정되기 전에 측정될 수 있어 잠시 후 한 번 더 맞춘다
+      setTimeout(function () { self.fit(); }, 600);
+      try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { self.fit(); }); } catch (e) { /* 무시 */ }
+    });
   },
 
   /** 라우터가 다른 화면으로 넘어갈 때 — 타이머·리스너·body 클래스 정리 */
@@ -175,35 +182,59 @@ App.views.board = {
     else self.status();
   },
 
-  /** 한 화면에 들어가는 가장 큰 배율 선택 → 안 들어가면 페이지 분할 */
+  /**
+   * 한 화면에 들어가는 가장 큰 배율 선택. 배율(큰 것부터) × 단 수 K(1~4) 를 실제 배치로 측정한다.
+   *  - K=1: 그룹이 가로로 흐르는 flex-wrap (배율이 클 때 유리)
+   *  - K≥2: CSS 다단(column) — 그룹을 세로로 채워 넣어 빈 공간이 적다 (학생 수가 많을 때)
+   * 최소 배율에서도 안 들어가면 K=1 로 돌아가 그룹 단위 페이지 분할.
+   */
   fit: function () {
     var self = this;
     var board = App.$('#board'), view = App.$('#board-view'), flow = self.cur;
     if (!board || !view || !flow || self.lastMode !== 'list') return;
-    var avail = view.clientHeight;
-    var chosen = self.SCALES[self.SCALES.length - 1];
+    var availH = view.clientHeight, availW = view.clientWidth;
+    var best = null;
+    outer:
     for (var i = 0; i < self.SCALES.length; i++) {
-      self.applyScale(board, self.SCALES[i]);
-      if (flow.scrollHeight <= avail) { chosen = self.SCALES[i]; break; }
+      var s = self.SCALES[i];
+      var cw = self.cardWidth(s);
+      var kmax = Math.min(self.MAX_COLS, Math.max(1, Math.floor((availW + self.COL_GAP) / (cw + self.COL_GAP))));
+      for (var k = 1; k <= kmax; k++) {
+        self.applyLayout(board, flow, s, k, availW);
+        if (flow.scrollHeight <= availH) { best = { s: s, k: k }; break outer; }
+      }
     }
-    self.applyScale(board, chosen);
+    if (self._flipTimer) { clearInterval(self._flipTimer); self._flipTimer = null; }
+    if (best) {
+      self.applyLayout(board, flow, best.s, best.k, availW);
+      self.pages = [0]; self.page = 0;
+      flow.style.transform = ''; flow.style.clipPath = '';
+      self.alt.innerHTML = '';
+      self.status();
+    } else {
+      self.applyLayout(board, flow, self.SCALES[self.SCALES.length - 1], 1, availW);
+      self.paginate();
+    }
     self.fitted = true;
-    self.paginate();
   },
 
-  /** 배율 → 카드 크기. 폭은 글자 크기 기준("1-1 남궁민수" 6.1em 까지 안 잘리게 7.2em + 여백) */
-  applyScale: function (board, s) {
+  /** 카드 폭은 글자 크기 기준 ("1-1 남궁민수" 6.1em 까지 안 잘리게 7.2em + 여백) */
+  cardWidth: function (s) { return Math.round(Math.round(58 * s) * 7.2 + 40); },
+
+  applyLayout: function (board, flow, s, k, availW) {
+    var self = this;
     var nm = Math.round(58 * s);
-    var cw = Math.round(nm * 7.2 + 40);
-    var gap = 10;
+    var cw = self.cardWidth(s);
     board.style.setProperty('--cw', cw + 'px');
     board.style.setProperty('--ch', Math.round(nm * 1.65) + 'px');
     board.style.setProperty('--nm', nm + 'px');
     board.style.setProperty('--gh', Math.max(15, Math.round(20 * s)) + 'px');
-    // 그룹 폭 = min(학생 수, 화면에 들어가는 열 수) × 카드 폭 → 작은 반들이 가로로 나란히 놓인다
-    var view = App.$('#board-view');
-    var cap = view ? Math.max(1, Math.floor((view.clientWidth + gap) / (cw + gap))) : 1;
-    App.$$('.bg-grid', board).forEach(function (g) {
+    flow.classList.toggle('cols', k > 1);
+    flow.style.columnCount = k > 1 ? String(k) : '';
+    // 그룹 안 열 수 = min(학생 수, 단 폭에 들어가는 카드 수)
+    var colW = k > 1 ? (availW - self.COL_GAP * (k - 1)) / k : availW;
+    var cap = Math.max(1, Math.floor((colW + self.CARD_GAP) / (cw + self.CARD_GAP)));
+    App.$$('.bg-grid', flow).forEach(function (g) {
       var n = Number(g.dataset.n) || 1;
       g.style.gridTemplateColumns = 'repeat(' + Math.min(n, cap) + ', var(--cw))';
     });

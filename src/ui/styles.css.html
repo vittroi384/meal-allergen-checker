@@ -313,6 +313,9 @@
                 display: flex; flex-wrap: wrap; align-items: flex-start; align-content: flex-start; gap: 16px 28px; }
   .board-flow.show { opacity: 1; }
   .bg { flex: 0 0 auto; max-width: 100%; }
+  /* 다단 배치 (fit 이 K≥2 를 고르면): 그룹을 세로로 채워 넣는다 */
+  .board-flow.cols { display: block; column-gap: 28px; }
+  .board-flow.cols .bg { break-inside: avoid; -webkit-column-break-inside: avoid; margin: 0 0 16px; display: inline-block; width: 100%; }
   .bg-head { font-size: var(--gh); font-weight: 600; color: #cbd5e1; line-height: 1.2; margin: 0 0 8px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .bg-head .n { color: #64748b; font-weight: 500; margin-left: 10px; }
   .bg-grid { display: grid; grid-template-columns: repeat(auto-fill, var(--cw)); gap: 10px; }
