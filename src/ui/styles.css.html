@@ -357,19 +357,22 @@
   .pd-head { border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 10px; }
   .pd-title { font-size: 16pt; font-weight: 800; letter-spacing: -0.3px; }
   .pd-sub { font-size: 9.5pt; color: #444; margin-top: 3px; }
-  .pd-class { display: flex; gap: 10px; align-items: baseline; margin: 12px 0 4px; padding-top: 8px; border-top: 1px solid #999; }
+  /* 반 제목 = <caption>: 페이지 끝에 혼자 남지 않게(break-after: avoid), 첫 2행(tbody.pd-first)과 한 블록 */
+  .pd-class { display: table-caption; caption-side: top; text-align: left; padding: 12px 0 4px; border-top: 1px solid #999; margin-top: 8px;
+              break-after: avoid; page-break-after: avoid; break-inside: avoid; page-break-inside: avoid; }
   .pd-sec:first-of-type .pd-class { border-top: 0; margin-top: 0; padding-top: 0; }
-  .pd-class b { font-size: 12pt; }
-  .pd-class span { color: #444; font-size: 9.5pt; }
-  .pd-class .n { margin-left: auto; }
+  .pd-class b { font-size: 12pt; margin-right: 10px; }
+  .pd-class span { color: #444; font-size: 9.5pt; margin-right: 10px; }
+  .pd-class .n { float: right; margin-right: 3mm; }
   .pd-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 10pt; }
   .pd-table th, .pd-table td { border: 1px solid #999; padding: 4px 6px; vertical-align: top; word-break: keep-all; white-space: normal; max-width: none; }
   .pd-table th { background: #eee; font-weight: 700; text-align: center; white-space: nowrap; }
   .pd-table td.c { text-align: center; white-space: nowrap; }
   .pd-table td.menu { overflow-wrap: anywhere; }
-  .pd-table thead { display: table-header-group; }   /* 페이지 넘어가면 헤더 반복 */
-  .pd-table tr { break-inside: avoid; page-break-inside: avoid; }
-  .pd-sec { break-inside: auto; }
+  .pd-table thead { display: table-header-group; break-after: avoid; page-break-after: avoid; }   /* 페이지 넘어가면 헤더 반복, 헤더만 남지 않게 */
+  .pd-table tr { break-inside: avoid !important; page-break-inside: avoid !important; }           /* 행 중간에서 절대 안 잘리게 */
+  .pd-table tbody.pd-first { break-inside: avoid; page-break-inside: avoid; }                     /* 제목+헤더+첫 2행 한 덩어리 */
+  .pd-sec { break-inside: auto; page-break-inside: auto; }
   .pd-page { break-after: page; page-break-after: always; }
   .pd-page:last-child { break-after: auto; page-break-after: auto; }
   .print-doc .empty { padding: 30px 0; text-align: center; color: #666; }
@@ -421,7 +424,10 @@
     body { background: #fff; font-size: 12px; }
     .main { padding: 0; max-width: none; }
     .card { border: 0; box-shadow: none; padding: 0; }
-    /* 인쇄 문서: 용지 여백은 @page 가 담당하므로 화면용 패딩·테두리 제거 */
+    /* 인쇄 문서: 용지 여백은 @page 가 담당하므로 화면용 패딩·테두리 제거.
+       스크롤 박스·고정 높이·flex/grid 컨테이너가 있으면 페이지 분할이 안 되므로 전부 일반 블록 흐름으로 */
+    html, body { height: auto !important; overflow: visible !important; }
+    #app, #app > *, .main, #p-body, .print-doc, .print-doc.l, .pd-sec { display: block !important; height: auto !important; max-height: none !important; overflow: visible !important; position: static !important; }
     .print-doc, .print-doc.l { width: auto; min-height: 0; margin: 0; padding: 0; border: 0; box-shadow: none; }
     .pd-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .table-wrap { border: 0; overflow: visible; }
