@@ -347,10 +347,32 @@
   .login-card .sub { color: var(--muted); margin-bottom: 18px; }
 
   /* 인쇄 */
-  .print-class { page-break-after: always; margin-bottom: 30px; }
-  .print-class:last-child { page-break-after: auto; }
-  .print-title { font-size: 18px; font-weight: 800; margin-bottom: 4px; }
-  .print-sub { color: var(--muted); margin-bottom: 10px; font-size: 13px; }
+  /* ---------- 인쇄 문서 (화면 미리보기 = A4 인쇄) ---------- */
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #fff; }
+  .seg button { border: 0; background: none; padding: 7px 12px; font-size: 13px; cursor: pointer; color: var(--text); border-right: 1px solid var(--border); white-space: nowrap; }
+  .seg button:last-child { border-right: 0; }
+  .seg button.on { background: var(--primary); color: #fff; font-weight: 600; }
+  .print-doc { width: 210mm; min-height: 297mm; margin: 0 auto 18px; padding: 14mm 12mm 16mm; box-sizing: border-box; background: #fff; border: 1px solid var(--border); box-shadow: 0 2px 14px rgba(15,23,42,.08); color: #111; font-size: 10.5pt; line-height: 1.4; }
+  .print-doc.l { width: 297mm; min-height: 210mm; }
+  .pd-head { border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 10px; }
+  .pd-title { font-size: 16pt; font-weight: 800; letter-spacing: -0.3px; }
+  .pd-sub { font-size: 9.5pt; color: #444; margin-top: 3px; }
+  .pd-class { display: flex; gap: 10px; align-items: baseline; margin: 12px 0 4px; padding-top: 8px; border-top: 1px solid #999; }
+  .pd-sec:first-of-type .pd-class { border-top: 0; margin-top: 0; padding-top: 0; }
+  .pd-class b { font-size: 12pt; }
+  .pd-class span { color: #444; font-size: 9.5pt; }
+  .pd-class .n { margin-left: auto; }
+  .pd-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 10pt; }
+  .pd-table th, .pd-table td { border: 1px solid #999; padding: 4px 6px; vertical-align: top; word-break: keep-all; white-space: normal; max-width: none; }
+  .pd-table th { background: #eee; font-weight: 700; text-align: center; white-space: nowrap; }
+  .pd-table td.c { text-align: center; white-space: nowrap; }
+  .pd-table td.menu { overflow-wrap: anywhere; }
+  .pd-table thead { display: table-header-group; }   /* 페이지 넘어가면 헤더 반복 */
+  .pd-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .pd-sec { break-inside: auto; }
+  .pd-page { break-after: page; page-break-after: always; }
+  .pd-page:last-child { break-after: auto; page-break-after: auto; }
+  .print-doc .empty { padding: 30px 0; text-align: center; color: #666; }
   /* ---------- 전광판 모드 (#/board) ---------- */
   body.board-mode { background: #0b1220; }
   body.board-mode .topbar, body.board-mode #toast-root { display: none !important; }
@@ -395,10 +417,13 @@
   }
 
   @media print {
-    .topbar, .no-print, #toast-root, #modal-root { display: none !important; }
+    .topbar, .no-print, #toast-root, #modal-root, .dropdown, .popover { display: none !important; }
     body { background: #fff; font-size: 12px; }
     .main { padding: 0; max-width: none; }
     .card { border: 0; box-shadow: none; padding: 0; }
+    /* 인쇄 문서: 용지 여백은 @page 가 담당하므로 화면용 패딩·테두리 제거 */
+    .print-doc, .print-doc.l { width: auto; min-height: 0; margin: 0; padding: 0; border: 0; box-shadow: none; }
+    .pd-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .table-wrap { border: 0; overflow: visible; }
     th { position: static; background: #f3f4f6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     th, td { padding: 5px 8px; border: 1px solid #d1d5db; white-space: nowrap; word-break: keep-all; }

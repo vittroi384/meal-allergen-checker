@@ -1,43 +1,95 @@
 <script>
-/* 반별 인쇄용: 기간·반 선택 → 반마다 한 페이지 표 */
+/**
+ * 인쇄: 기간(오늘/이번 주/이번 달/직접) · 학년/반 · 모드(전체 연속 기본 / 반별 분리) · 방향(세로/가로).
+ * 화면의 A4 미리보기(.print-doc)가 곧 인쇄 결과. 브라우저 머리글/바닥글 대신 문서 안에 제목·기간·출력일, @page 하단에 페이지 번호.
+ */
 App.views.print = {
-  title: '반별 인쇄',
+  title: '인쇄',
   render: function (el, r) {
     var h = App.h;
-    var self = this;
     var p = r.params || {};
+    var valid = function (s) { return /^\d{4}-\d{2}-\d{2}$/.test(s || ''); };
     var t = App.today();
     var dw = App.dow(t);
     var mon = App.addDays(t, dw === 0 ? -6 : 1 - dw);
-    var start = /^\d{4}-\d{2}-\d{2}$/.test(p.start) ? p.start : mon;
-    var end = /^\d{4}-\d{2}-\d{2}$/.test(p.end) ? p.end : App.addDays(mon, 4);
+    var monthEnd = function (d) { var pp = d.slice(0, 7).split('-').map(Number); return d.slice(0, 7) + '-' + App.pad(new Date(Date.UTC(pp[0], pp[1], 0)).getUTCDate()); };
+    var presets = { today: [t, t], week: [mon, App.addDays(mon, 4)], month: [t.slice(0, 7) + '-01', monthEnd(t)] };
+    var start = valid(p.start) ? p.start : presets.week[0];
+    var end = valid(p.end) ? p.end : presets.week[1];
+    var preset = Object.keys(presets).filter(function (k) { return presets[k][0] === start && presets[k][1] === end; })[0] || 'custom';
     var grade = p.grade || '', classNo = p.classNo || '';
-    var head =
-      '<div class="page-head no-print"><div><h2>반별 인쇄용 목록</h2><div class="sub">담임에게 나눠줄 수 있도록 반마다 한 페이지로 출력됩니다</div></div></div>' +
-      '<div class="card no-print"><div class="toolbar">' +
-      '<label class="small">기간</label><input type="date" id="p-start" value="' + start + '"> <span class="muted">~</span> <input type="date" id="p-end" value="' + end + '">' +
-      '<button class="btn" id="p-week">이번 주</button><button class="btn" id="p-month">이번 달</button>' +
+    var mode = p.mode === 'sep' ? 'sep' : 'cont';
+    var orient = p.orient === 'l' ? 'l' : 'p';
+
+    // @page 는 클래스로 못 바꾸므로 style 태그를 갱신 (용지·여백·하단 페이지 번호)
+    var ps = document.getElementById('print-page-style');
+    if (!ps) { ps = document.createElement('style'); ps.id = 'print-page-style'; document.head.appendChild(ps); }
+    ps.textContent = '@page { size: A4 ' + (orient === 'l' ? 'landscape' : 'portrait') + '; margin: 14mm 12mm 16mm; @bottom-center { content: counter(page) " / " counter(pages); font-size: 9pt; color: #6b7280; } }';
+
+    var seg = function (id, items, cur) {
+      return '<span class="seg" id="' + id + '">' + items.map(function (it) { return '<button type="button" class="' + (it[0] === cur ? 'on' : '') + '" data-v="' + it[0] + '">' + it[1] + '</button>'; }).join('') + '</span>';
+    };
+    el.innerHTML =
+      '<div class="page-head no-print"><div><h2>인쇄</h2><div class="sub">급식 알레르기 주의 학생 명단 — 아래 미리보기가 A4 인쇄 결과와 같습니다</div></div>' +
+      '<div class="actions"><button class="btn primary" id="p-print">🖨 인쇄</button><button class="btn" id="p-dl">xlsx 다운로드</button></div></div>' +
+      '<div class="card no-print"><div class="toolbar" style="row-gap:10px">' +
+      '<label class="small">기간</label>' + seg('p-range', [['today', '오늘'], ['week', '이번 주'], ['month', '이번 달'], ['custom', '직접 지정']], preset) +
+      '<input type="date" id="p-start" value="' + start + '"> <span class="muted">~</span> <input type="date" id="p-end" value="' + end + '">' +
       '<label class="small" style="margin-left:8px">학년</label><input type="number" id="p-grade" value="' + h(grade) + '" min="1" max="6" style="width:72px" placeholder="전체">' +
       '<label class="small">반</label><input type="number" id="p-class" value="' + h(classNo) + '" min="1" style="width:72px" placeholder="전체">' +
-      '<button class="btn primary" id="p-go">조회</button><button class="btn" id="p-print">🖨 인쇄</button><button class="btn" id="p-dl">xlsx 다운로드</button></div></div>';
-    el.innerHTML = head + '<div id="p-body"><div class="loading"><span class="spinner"></span></div></div>';
-    var nav = function () { App.go('print?start=' + App.$('#p-start').value + '&end=' + App.$('#p-end').value + '&grade=' + App.$('#p-grade').value + '&classNo=' + App.$('#p-class').value); };
+      '</div><div class="toolbar" style="margin-top:10px;row-gap:10px">' +
+      '<label class="small">모드</label>' + seg('p-mode', [['cont', '전체 연속 (영양사용)'], ['sep', '반별 분리 (담임 배부용, 반마다 새 페이지)']], mode) +
+      '<label class="small" style="margin-left:8px">방향</label>' + seg('p-orient', [['p', '세로'], ['l', '가로']], orient) +
+      '<button class="btn primary" id="p-go" style="margin-left:auto">조회</button></div>' +
+      '<div class="notice info small" style="margin-top:12px">인쇄 대화상자에서 <b>"머리글 및 바닥글" 끄기</b>, <b>"배경 그래픽" 켜기</b>, 용지 <b>A4</b>, 방향은 위에서 고른 것과 같게 두세요. 제목·기간·출력일은 문서 안에, 페이지 번호는 각 장 하단에 자동으로 들어갑니다.</div></div>' +
+      '<div id="p-body"><div class="loading"><span class="spinner"></span></div></div>';
+
+    var nav = function () {
+      App.go('print?start=' + App.$('#p-start').value + '&end=' + App.$('#p-end').value + '&grade=' + App.$('#p-grade').value + '&classNo=' + App.$('#p-class').value + '&mode=' + mode + '&orient=' + orient);
+    };
     App.$('#p-go').onclick = nav;
-    App.$('#p-week').onclick = function () { App.$('#p-start').value = mon; App.$('#p-end').value = App.addDays(mon, 4); nav(); };
-    App.$('#p-month').onclick = function () { var ym = t.slice(0, 7); var pp = ym.split('-').map(Number); var last = new Date(Date.UTC(pp[0], pp[1], 0)).getUTCDate(); App.$('#p-start').value = ym + '-01'; App.$('#p-end').value = ym + '-' + App.pad(last); nav(); };
     App.$('#p-print').onclick = function () { window.print(); };
     App.$('#p-dl').onclick = function (e) { App.downloadXlsx('class', { start: start, end: end, grade: grade, classNo: classNo }, e.currentTarget); };
+    App.on(el, 'click', function (e) {
+      var b = e.target.closest('.seg button');
+      if (!b || !el.contains(b)) return;
+      var id = b.parentNode.id, v = b.dataset.v;
+      if (id === 'p-range') {
+        if (v === 'custom') { App.$('#p-start').focus(); return; }
+        App.$('#p-start').value = presets[v][0]; App.$('#p-end').value = presets[v][1]; nav();
+      } else if (id === 'p-mode') { mode = v; nav(); } else if (id === 'p-orient') { orient = v; nav(); }
+    });
+
+    var school = (App.state.boot && App.state.boot.settings['학교명']) || '';
+    var periodText = App.fmtDate(start) + ' ~ ' + App.fmtDate(end) + ' (' + start.slice(0, 4) + '년)';
+    var docHead = function (sub) {
+      return '<div class="pd-head"><div class="pd-title">' + h(school ? school + ' ' : '') + '급식 알레르기 주의 학생 명단</div>' +
+        '<div class="pd-sub">기간 ' + h(periodText) + (sub ? ' · ' + sub : '') + ' · 출력 ' + h(App.today()) + '</div></div>';
+    };
+    var classHead = function (c) {
+      return '<div class="pd-class"><b>' + c.grade + '학년 ' + c.classNo + '반</b><span>' + h(c.teacherLabel || '') + '</span><span class="n">' + c.rows.length + '건</span></div>';
+    };
+    var table = function (c) {
+      return '<table class="pd-table"><colgroup><col style="width:23mm"><col style="width:12mm"><col style="width:20mm"><col><col style="width:14mm"></colgroup>' +
+        '<thead><tr><th>날짜</th><th>끼니</th><th>이름</th><th>못 먹는 메뉴 (원인)</th><th>확인</th></tr></thead><tbody>' +
+        c.rows.map(function (x) { return '<tr><td class="c">' + h(x.label) + '</td><td class="c">' + h(x.mealType) + '</td><td class="c">' + h(x.name) + '</td><td class="menu">' + h(x.text) + '</td><td></td></tr>'; }).join('') +
+        '</tbody></table>';
+    };
 
     return App.api('apiPrintData', { start: start, end: end, grade: grade, classNo: classNo }).then(function (d) {
       var body = App.$('#p-body');
-      if (!d.classes.length) { body.innerHTML = '<div class="card"><div class="empty">' + App.fmtDate(start) + ' ~ ' + App.fmtDate(end) + ' 기간에 해당 학생이 없습니다</div></div>'; return; }
-      body.innerHTML = d.classes.map(function (c) {
-        return '<div class="card print-class"><div class="print-title">' + h(d.schoolName) + ' ' + c.grade + '학년 ' + c.classNo + '반 급식 알레르기 주의 학생</div>' +
-          '<div class="print-sub">' + h(c.teacherLabel || '') + ' · 기간 ' + App.fmtDate(start) + ' ~ ' + App.fmtDate(end) + ' · 총 ' + c.rows.length + '건 · 출력 ' + App.today() + '</div>' +
-          '<div class="table-wrap fit uniform"><table><colgroup><col style="width:96px"><col style="width:64px"><col style="width:96px"><col><col style="width:90px"></colgroup><thead><tr><th class="center">날짜</th><th class="center">끼니</th><th>이름</th><th>못 먹는 메뉴 (원인)</th><th class="center">확인</th></tr></thead><tbody>' +
-          c.rows.map(function (x) { return '<tr><td class="center">' + h(x.label) + '</td><td class="center">' + h(x.mealType) + '</td><td class="name">' + h(x.name) + '</td><td class="wrap">' + h(x.text) + '</td><td></td></tr>'; }).join('') +
-          '</tbody></table></div></div>';
-      }).join('');
+      if (!d.classes.length) { body.innerHTML = '<div class="print-doc ' + orient + '">' + docHead('') + '<div class="empty">이 기간에 해당 학생이 없습니다</div></div>'; return; }
+      var total = d.classes.reduce(function (n, c) { return n + c.rows.length; }, 0);
+      if (mode === 'sep') {
+        // 반마다 새 페이지: 각 장에 제목·기간·반·담임
+        body.innerHTML = d.classes.map(function (c) {
+          return '<div class="print-doc ' + orient + ' pd-page">' + docHead(c.grade + '학년 ' + c.classNo + '반' + (c.teacherLabel ? ' · ' + h(c.teacherLabel) : '') + ' · ' + c.rows.length + '건') + table(c) + '</div>';
+        }).join('');
+      } else {
+        // 전체 연속: 반 구분선만 두고 이어서
+        body.innerHTML = '<div class="print-doc ' + orient + '">' + docHead('전체 ' + d.classes.length + '개 반 · ' + total + '건') +
+          d.classes.map(function (c) { return '<section class="pd-sec">' + classHead(c) + table(c) + '</section>'; }).join('') + '</div>';
+      }
     }).catch(function (e) { App.$('#p-body').innerHTML = '<div class="card"><div class="notice danger">' + h(e.message) + '</div></div>'; });
   },
 };
