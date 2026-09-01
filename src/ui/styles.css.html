@@ -250,13 +250,15 @@
   .aff-group.open .aff-body { display: flex; }
   .tag.more { background: #e5e7eb; color: #374151; }
   /* 날짜 상세 메뉴 행(.menu-item.row): 행 전체 클릭 = 수정, 오른쪽 끝 "···" 고정, 배지 열 폭 고정 → 버튼 유무와 무관하게 행 모양 동일 */
-  .menu-item.row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(72px, auto) 28px; align-items: center; gap: 10px; min-height: 44px; padding: 6px 6px 6px 12px; cursor: pointer; transition: background .12s, border-color .12s; }
+  /* 열: 이름(가변) | 칩+배지 고정 폭 300px(오른쪽 정렬 → 모든 행의 칩·배지 세로선 일치) | ··· 28px */
+  .menu-item.row { display: grid; grid-template-columns: minmax(0, 1fr) 300px 28px; align-items: center; gap: 10px; min-height: 44px; padding: 6px 6px 6px 12px; cursor: pointer; transition: background .12s, border-color .12s; }
   .menu-item.row:hover { background: #f8fafc; border-color: #cbd5e1; }
   .menu-item.row.needs:hover { background: #fef3c7; }
   .menu-item.row.pending { opacity: .5; pointer-events: none; }
-  .menu-item.row .tags { justify-content: flex-end; }
-  .menu-item.row .badges { display: flex; justify-content: flex-end; gap: 4px; }
-  .menu-item.row .badges:empty::before { content: ''; }
+  .menu-item.row .meta { display: flex; justify-content: flex-end; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
+  .menu-item.row .meta .tags { display: flex; justify-content: flex-end; gap: 2px; flex-wrap: wrap; }
+  .menu-item.row .meta .badge { flex: 0 0 auto; }
+  @media (max-width: 760px) { .menu-item.row { grid-template-columns: minmax(0, 1fr) auto 28px; } }
   .menu-item.row.confirm-del { grid-template-columns: 1fr; background: #fff1f2; border-color: #fecaca; cursor: default; }
   .menu-item.row .del-inline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13.5px; }
   .menu-item.row .del-inline b { color: var(--danger); }

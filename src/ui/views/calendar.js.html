@@ -227,9 +227,11 @@ App.menuRowHtml = function (m) {
     ? '<span class="badge warn">확인 필요</span>'
     : (m.checkedNone ? '<span class="badge gray" title="' + h(m.checkedAt ? '알레르기 없음으로 확인 · ' + m.checkedAt : '알레르기 없음으로 확인됨') + '">확인됨</span>' : '') +
       (m.manualEdited || m.source === '수동' ? '<span class="badge purple">수동</span>' : '');
+  // 열: 이름(가변) | 칩+배지 고정 폭(오른쪽 정렬, 어느 행이든 세로선이 맞음) | ··· 28px
   return '<div class="menu-item row' + (m.needsCheck ? ' needs' : '') + '" data-menu="' + m._row + '" title="' + (m.needsCheck ? '클릭하여 확인 처리' : '클릭하여 수정') + '">' +
-    '<span class="name">' + h(m.name) + '</span><span class="tags">' + App.codeTags(m.codes, null, 3) + '</span>' +
-    '<span class="badges">' + badge + '</span><button type="button" class="more-btn" data-more="' + m._row + '" aria-label="더보기" title="더보기">···</button></div>';
+    '<span class="name">' + h(m.name) + '</span>' +
+    '<span class="meta"><span class="tags">' + App.codeTags(m.codes, null, 3) + '</span>' + badge + '</span>' +
+    '<button type="button" class="more-btn" data-more="' + m._row + '" aria-label="더보기" title="더보기">···</button></div>';
 };
 App.menuListHtml = function (menus, opts) {
   var o = opts || {};
@@ -257,14 +259,12 @@ if (!App._menu.bound) {
     };
     var b = e.target.closest('button');
     if (b && b.dataset.more) {
-      var items = [{ label: '수정', onClick: function () { App.menuEditor(m, reload); } }];
-      if (m.checkedNone) items.push({ label: '확인 취소', onClick: function () { check(false); } });
-      items.push({ label: '삭제…', danger: true, onClick: function () {
+      // ··· 는 삭제만. 수정은 행 클릭(확인 필요 행은 팝오버 → 수정), 확인 취소는 수정 모달의 "없음 확인" 체크 해제
+      App.dropdown(b, [{ label: '삭제…', danger: true, onClick: function () {
         row.classList.add('confirm-del'); row.title = '';
         row.innerHTML = '<div class="del-inline"><span>"<b>' + h(m.name) + '</b>" 삭제하시겠습니까? 이 끼니는 수동 보호 상태가 됩니다.</span><span class="sp"></span>' +
           '<button type="button" class="btn sm danger" data-del-yes="1">삭제</button><button type="button" class="btn sm" data-del-no="1">취소</button></div>';
-      } });
-      App.dropdown(b, items);
+      } }]);
       return;
     }
     if (b && b.dataset.delYes) {
@@ -278,7 +278,7 @@ if (!App._menu.bound) {
     if (m.needsCheck) {
       App.popover(row, '<b>' + h(m.name) + '</b><br>이 메뉴에 알레르기 유발 식품이 없는 것을 확인하셨나요?', [
         { label: '없음 확인', primary: true, onClick: function () { check(true); } },
-        { label: '코드 입력', onClick: function () { App.menuEditor(m, reload); } },
+        { label: '수정', onClick: function () { App.menuEditor(m, reload); } },
         { label: '취소' },
       ]);
     } else {
