@@ -4,7 +4,7 @@
  */
 
 function doGet(e) {
-  try { recordWebAppUrl_(); } catch (err) { /* 무시 */ }
+  try { recordWebAppUrl_(true); } catch (err) { /* 무시 */ }
   var t = HtmlService.createTemplateFromFile('ui/index');
   t.schoolName = '';
   try { t.schoolName = readSettings()['학교명'] || ''; } catch (err) { /* 초기 설정 전 */ }

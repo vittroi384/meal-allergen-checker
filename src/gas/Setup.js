@@ -297,19 +297,22 @@ function listOurTriggers_() {
 // ---------- 메뉴 항목 ----------
 
 function menuOpenWebApp() {
-  // 메뉴를 열 때마다 최신 배포 URL 을 다시 읽어(조직 주소 → 표준 주소 정규화 포함) 기록
+  // 실제 웹 요청(doGet)에서 확인된 배포 ID 로 만든 표준 주소를 우선 사용. 메뉴 컨텍스트의 getUrl() 은 HEAD 배포를 가리킬 수 있어 폴백으로만.
   var url = '';
-  try { url = recordWebAppUrl_(); } catch (e) { /* 배포 전 */ }
-  if (!url) url = webAppUrl_();
+  try { url = recordWebAppUrl_(false); } catch (e) { /* 배포 전 */ }
   if (!url) {
     _alert('웹앱 URL 없음', '아직 웹앱이 배포되지 않았습니다.\n확장 프로그램 → Apps Script → 배포 → 새 배포 → 유형 "웹 앱" 으로 배포한 뒤, 웹앱에 한 번 접속하면 URL 이 자동 기록됩니다.');
     return;
   }
+  var deploymentId = getState('DEPLOYMENT_ID');
+  var note = deploymentId
+    ? '배포 ID <code>' + deploymentId + '</code> (웹앱 접속 시 확인된 값). 조직 계정 여부와 관계없이 열리는 표준 주소(<code>/macros/s/…/exec</code>)입니다.'
+    : '⚠ 아직 웹앱 접속으로 확인된 배포 ID 가 없어 추정 주소입니다. 이 링크를 한 번 연 뒤 메뉴를 다시 열면 확정됩니다.';
   var html = HtmlService.createHtmlOutput(
     '<div style="font-family:sans-serif;padding:8px"><p>아래 링크를 클릭하세요.</p>' +
     '<p><a href="' + url + '" target="_blank" rel="noopener" style="font-size:15px;word-break:break-all">' + url + '</a></p>' +
-    '<p style="color:#6b7280;font-size:12px">이 링크를 학교 담당자에게 공유하면 됩니다. 조직 계정 여부와 관계없이 열리는 표준 주소(<code>/macros/s/…/exec</code>)입니다.</p></div>'
-  ).setWidth(560).setHeight(180);
+    '<p style="color:#6b7280;font-size:12px;word-break:break-all">' + note + '<br>이 링크를 학교 담당자에게 공유하면 됩니다.</p></div>'
+  ).setWidth(560).setHeight(200);
   SpreadsheetApp.getUi().showModalDialog(html, '웹앱 열기');
 }
 

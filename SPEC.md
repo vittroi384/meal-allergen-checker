@@ -338,7 +338,7 @@
 | 항목 | 결정 |
 |---|---|
 | 문자 제공자 우선 구현 | **알리고** 먼저 (확정). 솔라피는 동일 채널 인터페이스로 추후 추가 |
-| 웹앱 URL 표기 | Workspace 계정의 `ScriptApp.getService().getUrl()` 은 조직 전용 `https://script.google.com/a/macros/{도메인}/s/{id}/exec` 를 돌려주는데 조직 밖에서는 열리지 않는다. `normalizeWebAppUrl`(core) 로 항상 `https://script.google.com/macros/s/{id}/exec` 로 바꿔 저장(`WEBAPP_URL`, 설정 `웹앱URL`)·표시(메뉴 웹앱 열기, 설정 화면)·알림 링크에 쓴다 (2026-09-01) |
+| 웹앱 URL 표기 | Workspace 계정의 `ScriptApp.getService().getUrl()` 은 조직 전용 `https://script.google.com/a/macros/{도메인}/s/{id}/exec` 를 돌려주는데 조직 밖에서는 열리지 않는다. `normalizeWebAppUrl`(core) 로 항상 `https://script.google.com/macros/s/{id}/exec` 로 바꿔 저장(`WEBAPP_URL`, 설정 `웹앱URL`)·표시(메뉴 웹앱 열기, 설정 화면)·알림 링크에 쓴다. 또한 시트 메뉴·setup 컨텍스트의 `getUrl()` 은 HEAD(/dev) 배포를 가리킬 수 있으므로, **실제 웹 요청(`doGet`)에서 확인된 배포 ID** 를 `DEPLOYMENT_ID` 상태에 저장하고 URL 은 항상 이 ID 로 조립한다(`buildWebAppUrl`). 이관 시 `DEPLOYMENT_ID` 는 가져오지 않는다 (2026-09-01) |
 | 대시보드 실패 알림 숨기기 | 로그 행을 지우거나 표시하지 않고, **숨긴 시각**(`FAILURES_DISMISSED_AT`) 하나만 저장해 그 이전 실패를 걸러낸다. 개별 숨김 대신 "지금까지 전부 확인함" 한 버튼 — 시트 열 추가·마이그레이션 없이 끝나고 운영자가 실제로 원하는 동작이기 때문. 추가로 7일 지난 실패는 대시보드에서 자동 제외 (2026-09-01) |
 | 비밀번호 저장 | SHA-256 + salt 해시 (Script Properties). 초기 비밀번호는 setup 시 랜덤 생성 후 시트 메뉴 알림창에 1회 표시. 메뉴에서 재설정 가능 |
 | 세션 | CacheService 토큰, **6시간**(CacheService 상한). 요청마다 갱신 |

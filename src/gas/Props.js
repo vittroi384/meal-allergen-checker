@@ -51,12 +51,26 @@ function setState(key, value) {
  * Workspace 계정은 getUrl() 이 조직 전용 /a/macros/{도메인}/ 주소를 주므로 저장·표시 모두 정규화한다.
  */
 function webAppUrl_(settings) {
+  // 1순위: 실제 웹 요청(doGet)에서 확인된 배포 ID — 가장 확실한 값
+  var id = getState('DEPLOYMENT_ID');
+  if (id) return buildWebAppUrl(id);
+  // 2순위: 기록된 URL (setup/메뉴에서 getUrl() 로 얻은 값일 수 있음)
   return normalizeWebAppUrl(getState('WEBAPP_URL') || (settings || readSettings())['웹앱URL'] || '');
 }
 
-/** ScriptApp 이 알려주는 현재 배포 URL 을 정규화해 상태·설정 시트에 기록. 배포 전이면 아무것도 안 함 */
-function recordWebAppUrl_() {
-  var url = normalizeWebAppUrl(ScriptApp.getService().getUrl());
+/**
+ * 현재 웹앱 URL 을 상태·설정 시트에 기록하고 돌려준다.
+ * @param fromWebRequest doGet 안에서 호출됐는가. 이때의 getUrl() 은 지금 접속된 배포의 URL 이라 신뢰할 수 있으므로
+ *   배포 ID(DEPLOYMENT_ID) 를 뽑아 저장한다. 시트 메뉴·setup 같은 비웹 컨텍스트의 getUrl() 은 HEAD(/dev) 배포를
+ *   가리킬 수 있어 ID 를 갱신하지 않고 폴백으로만 쓴다.
+ */
+function recordWebAppUrl_(fromWebRequest) {
+  var seen = normalizeWebAppUrl(ScriptApp.getService().getUrl());
+  if (fromWebRequest) {
+    var id = extractDeploymentId(seen);
+    if (id && getState('DEPLOYMENT_ID') !== id) setState('DEPLOYMENT_ID', id);
+  }
+  var url = webAppUrl_() || seen;
   if (!url) return '';
   if (getState('WEBAPP_URL') !== url) {
     setState('WEBAPP_URL', url);

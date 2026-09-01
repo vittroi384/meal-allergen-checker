@@ -28,3 +28,18 @@ function isOrgWebAppUrl(url) {
   var u = String(url || '').trim();
   return _WEBAPP_ORG_PATTERNS.some(function (re) { return re.test(u); });
 }
+
+/**
+ * 정식(exec) 웹앱 URL 에서 배포 ID 를 뽑는다. /dev(HEAD) 주소나 다른 형태면 ''.
+ *   'https://script.google.com/macros/s/AKfycb…/exec' → 'AKfycb…'
+ */
+function extractDeploymentId(url) {
+  var m = /^https:\/\/script\.google\.com\/macros\/s\/([A-Za-z0-9_-]+)\/exec(?:[?#].*)?$/.exec(normalizeWebAppUrl(url));
+  return m ? m[1] : '';
+}
+
+/** 배포 ID → 외부 공유용 표준 exec URL */
+function buildWebAppUrl(deploymentId) {
+  var id = String(deploymentId || '').trim();
+  return id ? 'https://script.google.com/macros/s/' + id + '/exec' : '';
+}

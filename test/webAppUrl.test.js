@@ -28,6 +28,21 @@ test('normalizeWebAppUrl: standard URL unchanged, whitespace trimmed, empty → 
   assert.strictEqual(core.normalizeWebAppUrl('https://example.com/a/macros/x/s/y/exec'), 'https://example.com/a/macros/x/s/y/exec');
 });
 
+test('extractDeploymentId: exec only (org form normalized first), dev/HEAD → ""', () => {
+  assert.strictEqual(core.extractDeploymentId(STD), ID);
+  assert.strictEqual(core.extractDeploymentId(STD + '?page=1'), ID);
+  assert.strictEqual(core.extractDeploymentId(`https://script.google.com/a/macros/exampleschool.kr/s/${ID}/exec`), ID);
+  assert.strictEqual(core.extractDeploymentId(`https://script.google.com/macros/s/${ID}/dev`), '');
+  assert.strictEqual(core.extractDeploymentId(''), '');
+  assert.strictEqual(core.extractDeploymentId('https://example.com/macros/s/x/exec'), '');
+});
+
+test('buildWebAppUrl', () => {
+  assert.strictEqual(core.buildWebAppUrl(ID), STD);
+  assert.strictEqual(core.buildWebAppUrl(' ' + ID + ' '), STD);
+  assert.strictEqual(core.buildWebAppUrl(''), '');
+});
+
 test('isOrgWebAppUrl', () => {
   assert.strictEqual(core.isOrgWebAppUrl(`https://script.google.com/a/macros/exampleschool.kr/s/${ID}/exec`), true);
   assert.strictEqual(core.isOrgWebAppUrl(STD), false);
