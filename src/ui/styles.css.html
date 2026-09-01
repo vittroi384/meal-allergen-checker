@@ -309,23 +309,22 @@
   .board-head .loading { font-size: 22px; color: #94a3b8; }
   .board-view { flex: 1 1 auto; overflow: hidden; position: relative; margin: 0 32px; }
   /* 두 레이어를 겹쳐 두고 opacity 로 크로스페이드 */
+  /* 전역 N열 그리드(--cols). 반 그룹은 학생 수만큼 열을 차지(--span)하고, 남는 열은 다음 반이 채운다 → 카드 폭은 항상 열 폭으로 동일 */
   .board-flow { position: absolute; left: 0; right: 0; top: 0; padding: 14px 0 20px; opacity: 0; transition: opacity 1s ease; pointer-events: none;
-                display: flex; flex-wrap: wrap; align-items: flex-start; align-content: flex-start; gap: 16px 28px; }
+                display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); grid-auto-flow: dense; gap: 14px 10px; align-items: start; }
   .board-flow.show { opacity: 1; }
-  .bg { flex: 0 0 auto; max-width: 100%; }
-  /* 다단 배치 (fit 이 K≥2 를 고르면): 그룹을 세로로 채워 넣는다 */
-  .board-flow.cols { display: block; column-gap: 28px; }
-  .board-flow.cols .bg { break-inside: avoid; -webkit-column-break-inside: avoid; margin: 0 0 16px; display: inline-block; width: 100%; }
-  .bg-head { font-size: var(--gh); font-weight: 600; color: #cbd5e1; line-height: 1.2; margin: 0 0 8px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .bg-head .n { color: #64748b; font-weight: 500; margin-left: 10px; }
-  .bg-grid { display: grid; grid-template-columns: repeat(auto-fill, var(--cw)); gap: 10px; }
-  .bc { width: var(--cw); height: var(--ch); display: flex; align-items: center; padding: 0 20px 0 22px; box-sizing: border-box; background: #1e293b; border: 2px solid var(--gc, #64748b); border-left-width: 10px; border-radius: 14px;
+  .bg { grid-column: span var(--span, 1); min-width: 0; }
+  /* 반 헤더: 한 줄, 카드보다 확실히 작고 가늘게 */
+  .bg-head { font-size: var(--gh); font-weight: 500; color: #94a3b8; line-height: 1.2; margin: 0 0 8px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* 카드: 그룹 안에서도 열 폭 그대로(--span 열), 전부 같은 크기, 단일 스타일 */
+  .bg-grid { display: grid; grid-template-columns: repeat(var(--span, 1), minmax(0, 1fr)); gap: 10px; }
+  .bc { height: var(--ch); display: flex; align-items: center; padding: 0 22px; box-sizing: border-box; background: #1e293b; border: 1px solid #3b4a63; border-radius: 14px; min-width: 0;
         color: #ffffff; font-size: var(--nm); font-weight: 900; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.5px; text-shadow: 0 2px 6px rgba(0,0,0,.5); }
-  .board-msg { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; text-align: center; padding: 20px; word-break: keep-all; }
-  .board-msg .big { font-size: 96px; font-weight: 900; line-height: 1.1; }
+  .board-msg { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px; text-align: center; padding: 20px; word-break: keep-all; }
+  .board-msg .big { font-size: 104px; font-weight: 900; line-height: 1.1; }
   .board-msg .big.ok { color: #34d399; }
   .board-msg .big.muted { color: #94a3b8; }
-  .board-msg small { font-size: 28px; font-weight: 500; color: #94a3b8; }
+  .board-msg .date { font-size: 34px; font-weight: 600; color: #cbd5e1; }
   /* 하단 상태: 아주 작게 구석에 */
   .board-foot { position: fixed; right: 10px; bottom: 8px; display: flex; gap: 8px; align-items: center; z-index: 30; opacity: .45; }
   .board-foot:hover { opacity: 1; }
@@ -333,7 +332,7 @@
   .board-exit { background: rgba(255,255,255,.08); color: #cbd5e1; border: 1px solid rgba(255,255,255,.2); border-radius: 6px; padding: 2px 7px; font-size: 11px; line-height: 1.4; cursor: pointer; }
   @media (max-width: 900px) {
     .board-head { gap: 10px; padding: 10px 14px; } .board-head .date { font-size: 22px; } .board-head .meal, .board-head .cnt, .board-head .sep { font-size: 18px; } .board-head .clock { font-size: 16px; }
-    .board-view { margin: 0 14px; } .board-msg .big { font-size: 44px; } .board-msg small { font-size: 18px; }
+    .board-view { margin: 0 14px; } .board-msg .big { font-size: 44px; } .board-msg .date { font-size: 18px; }
   }
 
   @media print {

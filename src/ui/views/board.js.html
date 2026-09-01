@@ -1,30 +1,30 @@
 <script>
 /**
  * 전광판 모드 (#/board): 오늘 해당 학생 이름만 큰 글씨로 전체 화면.
- * - 카드는 이름만, 전부 같은 크기(그리드). 반별 그룹, 반 헤더는 한 줄 작게. 학년별 색 테두리
- * - 한 화면에 다 들어가는 가장 큰 배율을 고른다(최대 30명 기준). 안 들어갈 때만 그룹 단위 페이지 전환(12초, 1초 크로스페이드)
- * - 5분마다 다시 받아 바뀐 그룹만 교체 (전체 리렌더 없음)
- * - Esc 또는 구석의 작은 버튼으로 나가기. 대시보드 API(apiDashboard) 데이터를 그대로 사용
+ * - 카드는 이름만, 단일 스타일, 같은 크기. 열 수는 학생 수로 고정: ≤10명 2열, 11~20명 3열, 21명~ 4열
+ * - 반별 그룹(헤더 한 줄 작게: "1학년 1반 · 담임 OOO · n명")
+ * - 세로로 한 화면에 들어가는 가장 큰 글자 배율을 측정으로 선택. 최소 배율에서도 안 들어가면(30명 초과 등) 그룹 단위 페이지 전환 — 10초 간격, 1초 크로스페이드
+ * - 5분마다 다시 받아 바뀐 그룹만 교체 (전체 리렌더 없음). Esc 또는 구석의 작은 버튼으로 나가기
+ * - 대시보드 API(apiDashboard) 데이터를 그대로 사용
  */
 App.views.board = {
   title: '전광판',
   skeleton: 'dashboard',
-  FLIP_MS: 12000,
+  FLIP_MS: 10000,
   FADE_MS: 1000,
   REFRESH_MS: 5 * 60 * 1000,
-  // 카드 배율 후보 (큰 것부터). 카드 320×96, 이름 58px 기준
+  // 글자 배율 후보 (큰 것부터). 이름 58px 기준
   SCALES: [1.7, 1.55, 1.4, 1.25, 1.12, 1.0, 0.9, 0.82, 0.74, 0.66, 0.6, 0.55, 0.5, 0.45],
-  MAX_COLS: 4,
-  COL_GAP: 28,
   CARD_GAP: 10,
-  GRADE_COLORS: ['#60a5fa', '#34d399', '#fbbf24', '#f472b6', '#a78bfa', '#fb923c', '#2dd4bf', '#f87171'],
+
+  colsFor: function (total) { return total <= 10 ? 2 : total <= 20 ? 3 : 4; },
 
   render: function (el) {
     var self = this;
     var h = App.h;
     self.leave();
     document.body.classList.add('board-mode');
-    self.page = 0; self.pages = [0]; self.lastHead = ''; self.lastMode = ''; self.data = null; self.flipping = false;
+    self.page = 0; self.pages = [0]; self.lastHead = ''; self.lastMode = ''; self.data = null; self.flipping = false; self.fitted = false;
     self._timers = [];
     el.innerHTML =
       '<div class="board" id="board">' +
@@ -94,11 +94,6 @@ App.views.board = {
     s.textContent = parts.join(' · ');
   },
 
-  gradeColor: function (grade) {
-    var g = Number(grade) || 1;
-    return this.GRADE_COLORS[(g - 1) % this.GRADE_COLORS.length];
-  },
-
   /** 데이터 → 화면. 바뀐 부분만 DOM 에 반영한다 */
   draw: function () {
     var self = this;
@@ -110,7 +105,7 @@ App.views.board = {
     var total = 0;
     types.forEach(function (t) { total += d.todayByType[t].count; });
 
-    // ---- 상단 한 줄
+    // ---- 상단 한 줄 (예외 화면에서도 유지)
     var headHtml = '<span class="date">' + h(d.todayLabel) + '</span>' +
       (types.length
         ? types.map(function (t) { var r = d.todayByType[t]; return '<span class="sep">·</span><span class="meal">' + h(t) + '</span><span class="cnt ' + (r.count ? 'hit' : 'ok') + '">해당 ' + r.count + '명</span>'; }).join('')
@@ -119,13 +114,14 @@ App.views.board = {
     if (headHtml !== self.lastHead) { App.$('#board-head').innerHTML = headHtml; self.lastHead = headHtml; }
     self.tickClock();
 
-    // ---- 빈 상태
+    // ---- 예외 화면: 화면 중앙에 크게 + 날짜
     var msg = App.$('#board-msg');
     var mode = !types.length ? 'nomeal' : (!total ? 'none' : 'list');
     if (mode !== 'list') {
-      var msgHtml = mode === 'nomeal'
-        ? '<div class="big muted">오늘 급식 없음</div><small>주말·방학이 아니라면 급식 관리에서 동기화하세요</small>'
-        : '<div class="big ok">오늘 해당 학생 없음</div><small>' + h(types.join(' · ')) + ' 메뉴 모두 안전합니다</small>';
+      var msgHtml = (mode === 'nomeal'
+        ? '<div class="big muted">급식 없음</div>'
+        : '<div class="big ok">오늘 해당 학생 없음</div>') +
+        '<div class="date">' + h(d.todayLabel) + (types.length ? ' · ' + h(types.join(' · ')) : '') + '</div>';
       if (msg.innerHTML !== msgHtml) msg.innerHTML = msgHtml;
       msg.hidden = false;
       self.cur.classList.remove('show'); self.alt.classList.remove('show');
@@ -136,7 +132,7 @@ App.views.board = {
       return;
     }
     msg.hidden = true;
-    if (self.lastMode !== 'list') { self.cur.classList.add('show'); }
+    if (self.lastMode !== 'list') self.cur.classList.add('show');
     self.lastMode = mode;
 
     // ---- 그룹(끼니 × 반) 계산
@@ -156,9 +152,8 @@ App.views.board = {
       });
       order.forEach(function (k) {
         var g = byClass[k];
-        var head = (types.length > 1 ? h(t) + ' · ' : '') + g.grade + '학년 ' + g.classNo + '반' + (g.teacher ? ' · 담임 ' + h(g.teacher) : '') +
-          '<span class="n">' + g.names.length + '명</span>';
-        g.inner = '<div class="bg-head">' + head + '</div><div class="bg-grid" data-n="' + g.names.length + '">' + g.names.map(function (n) { return '<div class="bc">' + h(n) + '</div>'; }).join('') + '</div>';
+        var head = (types.length > 1 ? h(t) + ' · ' : '') + g.grade + '학년 ' + g.classNo + '반' + (g.teacher ? ' · 담임 ' + h(g.teacher) : '') + ' · ' + g.names.length + '명';
+        g.inner = '<div class="bg-head">' + head + '</div><div class="bg-grid">' + g.names.map(function (n) { return '<div class="bc">' + h(n) + '</div>'; }).join('') + '</div>';
         g.sig = g.inner;
         groups.push(g);
       });
@@ -173,71 +168,54 @@ App.views.board = {
       var elG = existing[g.key];
       if (!elG) { elG = document.createElement('section'); elG.className = 'bg'; elG.dataset.key = g.key; changed = true; }
       else delete existing[g.key];
-      if (elG.dataset.sig !== g.sig) { elG.innerHTML = g.inner; elG.dataset.sig = g.sig; elG.style.setProperty('--gc', self.gradeColor(g.grade)); changed = true; }
+      if (elG.dataset.sig !== g.sig) { elG.innerHTML = g.inner; elG.dataset.sig = g.sig; elG.dataset.n = String(g.names.length); changed = true; }
       if (flow.children[i] !== elG) { flow.insertBefore(elG, flow.children[i] || null); changed = true; }
     });
     Object.keys(existing).forEach(function (k) { existing[k].remove(); changed = true; });
+    if (total !== self.studentCount) changed = true;
     self.studentCount = total;
     if (changed || !self.fitted) self.fit();
     else self.status();
   },
 
-  /**
-   * 한 화면에 들어가는 가장 큰 배율 선택. 배율(큰 것부터) × 단 수 K(1~4) 를 실제 배치로 측정한다.
-   *  - K=1: 그룹이 가로로 흐르는 flex-wrap (배율이 클 때 유리)
-   *  - K≥2: CSS 다단(column) — 그룹을 세로로 채워 넣어 빈 공간이 적다 (학생 수가 많을 때)
-   * 최소 배율에서도 안 들어가면 K=1 로 돌아가 그룹 단위 페이지 분할.
-   */
+  /** 열 수는 학생 수로 고정, 세로로 한 화면에 들어가는 가장 큰 배율 선택 → 안 들어가면 그룹 단위 페이지 */
   fit: function () {
     var self = this;
     var board = App.$('#board'), view = App.$('#board-view'), flow = self.cur;
     if (!board || !view || !flow || self.lastMode !== 'list') return;
     var availH = view.clientHeight, availW = view.clientWidth;
+    var cols = self.colsFor(self.studentCount || 0);
+    board.style.setProperty('--cols', String(cols));
+    // 반 그룹은 학생 수만큼만 열을 차지(최대 열 수). 남는 열에는 다음 반이 이어져 들어간다 (grid-auto-flow: dense)
+    Array.prototype.forEach.call(flow.children, function (g) {
+      g.style.setProperty('--span', String(Math.min(cols, Math.max(1, Number(g.dataset.n) || 1))));
+    });
     var best = null;
-    outer:
     for (var i = 0; i < self.SCALES.length; i++) {
-      var s = self.SCALES[i];
-      var cw = self.cardWidth(s);
-      var kmax = Math.min(self.MAX_COLS, Math.max(1, Math.floor((availW + self.COL_GAP) / (cw + self.COL_GAP))));
-      for (var k = 1; k <= kmax; k++) {
-        self.applyLayout(board, flow, s, k, availW);
-        if (flow.scrollHeight <= availH) { best = { s: s, k: k }; break outer; }
-      }
+      self.applyScale(board, self.SCALES[i], cols, availW);
+      if (flow.scrollHeight <= availH) { best = self.SCALES[i]; break; }
     }
     if (self._flipTimer) { clearInterval(self._flipTimer); self._flipTimer = null; }
-    if (best) {
-      self.applyLayout(board, flow, best.s, best.k, availW);
+    if (best !== null) {
       self.pages = [0]; self.page = 0;
       flow.style.transform = ''; flow.style.clipPath = '';
       self.alt.innerHTML = '';
       self.status();
     } else {
-      self.applyLayout(board, flow, self.SCALES[self.SCALES.length - 1], 1, availW);
+      self.applyScale(board, self.SCALES[self.SCALES.length - 1], cols, availW);
       self.paginate();
     }
     self.fitted = true;
   },
 
-  /** 카드 폭은 글자 크기 기준 ("1-1 남궁민수" 6.1em 까지 안 잘리게 7.2em + 여백) */
-  cardWidth: function (s) { return Math.round(Math.round(58 * s) * 7.2 + 40); },
-
-  applyLayout: function (board, flow, s, k, availW) {
-    var self = this;
-    var nm = Math.round(58 * s);
-    var cw = self.cardWidth(s);
-    board.style.setProperty('--cw', cw + 'px');
-    board.style.setProperty('--ch', Math.round(nm * 1.65) + 'px');
+  /** 배율 → 글자·카드 크기. 이름이 열 폭 안에 들어가도록 상한("1-1 남궁민수" ≈ 6.1em → 7.2em 기준) */
+  applyScale: function (board, s, cols, availW) {
+    var colW = (availW - this.CARD_GAP * (cols - 1)) / cols;
+    var nm = Math.min(Math.round(58 * s), Math.floor((colW - 44) / 7.2));
+    nm = Math.max(nm, 20);
     board.style.setProperty('--nm', nm + 'px');
-    board.style.setProperty('--gh', Math.max(15, Math.round(20 * s)) + 'px');
-    flow.classList.toggle('cols', k > 1);
-    flow.style.columnCount = k > 1 ? String(k) : '';
-    // 그룹 안 열 수 = min(학생 수, 단 폭에 들어가는 카드 수)
-    var colW = k > 1 ? (availW - self.COL_GAP * (k - 1)) / k : availW;
-    var cap = Math.max(1, Math.floor((colW + self.CARD_GAP) / (cw + self.CARD_GAP)));
-    App.$$('.bg-grid', flow).forEach(function (g) {
-      var n = Number(g.dataset.n) || 1;
-      g.style.gridTemplateColumns = 'repeat(' + Math.min(n, cap) + ', var(--cw))';
-    });
+    board.style.setProperty('--ch', Math.round(nm * 1.65) + 'px');
+    board.style.setProperty('--gh', Math.max(14, Math.round(nm * 0.4)) + 'px');
   },
 
   /** 그룹 단위 페이지 경계 (그룹은 블록 배치라 offsetTop 이 순서대로 증가) */
@@ -248,7 +226,9 @@ App.views.board = {
     if (!view || !flow) return;
     var avail = view.clientHeight;
     var pages = [0], start = 0;
-    Array.prototype.forEach.call(flow.children, function (k) {
+    // dense 배치라 DOM 순서와 화면 순서가 다를 수 있어 세로 위치로 정렬해 행 단위 경계를 찾는다
+    var kids = Array.prototype.slice.call(flow.children).sort(function (a, b) { return a.offsetTop - b.offsetTop; });
+    kids.forEach(function (k) {
       var top = k.offsetTop, bottom = top + k.offsetHeight;
       if (bottom - start > avail && top > start) { start = top; pages.push(top); }
     });
