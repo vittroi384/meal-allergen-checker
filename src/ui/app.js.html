@@ -24,8 +24,17 @@ var App = (function () {
   function addMonths(ym, n) { var p = ym.split('-').map(Number); var t = new Date(Date.UTC(p[0], p[1] - 1 + n, 1)); return t.getUTCFullYear() + '-' + pad(t.getUTCMonth() + 1); }
   function today() { return state.boot ? state.boot.today : new Date().toISOString().slice(0, 10); }
   function allergenName(c) { return (state.boot && state.boot.allergens[c]) || String(c); }
-  function codeTags(codes, hits) {
-    return (codes || []).map(function (c) { return '<span class="tag' + (hits && hits.indexOf(c) >= 0 ? ' hit' : '') + '">' + h(allergenName(c)) + '(' + c + ')</span>'; }).join('');
+  /** 알레르기 칩. hits 에 든 코드는 강조, max 를 넘는 나머지는 "+N" 칩 하나로 접는다(툴팁에 전체) */
+  function codeTags(codes, hits, max) {
+    var list = codes || [];
+    var shown = max && list.length > max ? list.slice(0, max) : list;
+    var html = shown.map(function (c) { return '<span class="tag' + (hits && hits.indexOf(c) >= 0 ? ' hit' : '') + '">' + h(allergenName(c)) + '(' + c + ')</span>'; }).join('');
+    if (shown.length < list.length) {
+      var rest = list.slice(shown.length);
+      var restHit = hits && rest.some(function (c) { return hits.indexOf(c) >= 0; });
+      html += '<span class="tag more' + (restHit ? ' hit' : '') + '" title="' + h(rest.map(function (c) { return allergenName(c) + '(' + c + ')'; }).join(', ')) + '">+' + rest.length + '</span>';
+    }
+    return html;
   }
   function menuBadges(m) {
     var out = '';
@@ -307,7 +316,7 @@ var App = (function () {
   }
   return { start: start, api: api, apiNoAuth: apiNoAuth, loginPanel: loginPanel, views: views, state: state, h: h, $: $, $$: $$, toast: toast, modal: modal, confirm: confirmDialog, on: on, busy: busy,
     fmtDate: fmtDate, fmtDateLong: fmtDateLong, addDays: addDays, addMonths: addMonths, today: today, dow: dow, DAYS: DAYS,
-    allergenName: allergenName, codeTags: codeTags, menuBadges: menuBadges, downloadXlsx: downloadXlsx, readFileBase64: readFileBase64, go: go, refreshBoot: refreshBoot, pad: pad,
+    allergenName: allergenName, codeTags: codeTags, menuBadges: menuBadges, downloadXlsx: downloadXlsx, readFileBase64: readFileBase64, go: go, rerender: renderRoute, refreshBoot: refreshBoot, pad: pad,
     cached: cached, cachePut: cachePut, invalidate: invalidate, changed: changed, prefetch: prefetch, skeleton: skeleton };
 })();
 </script>

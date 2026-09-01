@@ -51,14 +51,109 @@ App.views.calendar = {
   },
 };
 
-/** 해당 학생 목록 (상단 인원수 고정 + 내부 스크롤) */
-App.affectedListHtml = function (affected, emptyText) {
+/**
+ * 해당 학생 목록 — 반별 그룹 컴포넌트 (대시보드·날짜 상세·메뉴 편집 미리보기 공용).
+ *  - 반 헤더("1-1 · 담임 OOO 010-… · n명")가 먼저, 접힌 상태에서는 이름 쉼표 요약. 클릭으로 펼침/접힘
+ *  - 펼치면 학생 카드(이름, 원인 메뉴, 알레르기 칩(원인 강조), 비고). 카드 클릭 → 학생 수정 모달 (opts.noEdit 면 비활성)
+ *  - 상단 "전체 펼치기/접기". 열림 상태는 ctx 별로 sessionStorage 에 기억. 반이 하나거나 5명 이하면 기본 펼침
+ * @param affected [{ student, items?: [{menu, reasons, matchedCodes, matchedKeywords}], text }]
+ * @param opts { ctx: 상태 저장 키(화면·끼니별), noEdit: 카드 클릭 비활성 }
+ */
+App._aff = { students: {}, data: {}, state: (function () { try { return JSON.parse(sessionStorage.getItem('mac_aff') || '{}'); } catch (e) { return {}; } })() };
+App._aff.save = function () { try { sessionStorage.setItem('mac_aff', JSON.stringify(App._aff.state)); } catch (e) { /* 무시 */ } };
+
+App.affectedListHtml = function (affected, emptyText, opts) {
   var h = App.h;
-  return '<div class="list-box"><div class="list-head"><span>해당 학생</span><span class="badge ' + (affected.length ? 'danger' : 'ok') + '">' + affected.length + '명</span></div><div class="list-scroll">' +
-    (affected.length ? '<div class="affected-list">' + affected.map(function (a) {
-      return '<div class="affected-item"><div class="who"><span>' + h(a.student.label) + '</span><span class="t">' + h(a.student.teacherLabel || '') + '</span></div><div class="why">' + h(a.text) + '</div></div>';
-    }).join('') + '</div>' : '<div class="empty">' + h(emptyText || '해당 학생 없음 🎉') + '</div>') + '</div></div>';
+  var o = opts || {};
+  var ctx = o.ctx || 'default';
+  var A = App._aff;
+  A.data[ctx] = { affected: affected, emptyText: emptyText, opts: o };
+
+  var groups = [], byKey = {};
+  affected.forEach(function (a) {
+    var st = a.student;
+    var k = st.grade + '-' + st.classNo;
+    if (!byKey[k]) { byKey[k] = { key: k, teacher: st.teacherLabel || '', items: [] }; groups.push(byKey[k]); }
+    byKey[k].items.push(a);
+    if (st._row) A.students[st._row] = st;
+  });
+  var defOpen = groups.length <= 1 || affected.length <= 5;
+  var all = A.state['all:' + ctx];
+  var isOpen = function (k) {
+    var v = A.state[ctx + '|' + k];
+    if (v === true || v === false) return v;
+    if (all === 'open' || all === 'closed') return all === 'open';
+    return defOpen;
+  };
+  var allOpen = groups.length > 0 && groups.every(function (g) { return isOpen(g.key); });
+
+  var card = function (a) {
+    var st = a.student;
+    var hitCodes = [], hitKw = [];
+    (a.items || []).forEach(function (it) { (it.matchedCodes || []).forEach(function (c) { if (hitCodes.indexOf(c) < 0) hitCodes.push(c); }); (it.matchedKeywords || []).forEach(function (k) { if (hitKw.indexOf(k) < 0) hitKw.push(k); }); });
+    var why = a.items ? a.items.map(function (it) { return h(it.menu) + (it.reasons && it.reasons.length ? '(' + h(it.reasons.join(', ')) + ')' : ''); }).join(' · ') : h(a.text || '');
+    var editable = !o.noEdit && st._row;
+    return '<div class="affected-item' + (editable ? ' clickable' : '') + '"' + (editable ? ' data-row="' + st._row + '" title="클릭하면 학생 정보를 수정합니다"' : '') + '>' +
+      '<div class="who"><span>' + h(st.name || st.label) + (st.note ? '<span class="note">' + h(st.note) + '</span>' : '') + '</span></div>' +
+      '<div class="why">' + why + '</div>' +
+      ((st.codes && st.codes.length) || (st.keywords && st.keywords.length)
+        ? '<div class="tags">' + App.codeTags(st.codes || [], hitCodes) + (st.keywords || []).map(function (k) { return '<span class="tag kw' + (hitKw.indexOf(k) >= 0 ? ' hit' : '') + '">' + h(k) + '</span>'; }).join('') + '</div>' : '') +
+      '</div>';
+  };
+
+  return '<div class="list-box affected-box" data-ctx="' + h(ctx) + '">' +
+    '<div class="list-head"><span>해당 학생</span><span class="right">' +
+    (groups.length > 1 ? '<button type="button" class="btn sm ghost" data-aff-all="' + h(ctx) + '">' + (allOpen ? '전체 접기' : '전체 펼치기') + '</button>' : '') +
+    '<span class="badge ' + (affected.length ? 'danger' : 'ok') + '">' + affected.length + '명</span></span></div>' +
+    '<div class="list-scroll">' +
+    (groups.length ? groups.map(function (g) {
+      var names = g.items.map(function (a) { return a.student.name || a.student.label; });
+      return '<div class="aff-group' + (isOpen(g.key) ? ' open' : '') + '" data-g="' + h(g.key) + '">' +
+        '<div class="aff-head" title="클릭하여 펼치기/접기"><span class="chev">▶</span><b>' + h(g.key) + '</b>' +
+        (g.teacher ? '<span class="t">' + h(g.teacher) + '</span>' : '') + '<span class="n">' + g.items.length + '명</span>' +
+        '<span class="sum" title="' + h(names.join(', ')) + '">' + h(names.join(', ')) + '</span></div>' +
+        '<div class="aff-body">' + g.items.map(card).join('') + '</div></div>';
+    }).join('') : '<div class="empty">' + h(emptyText || '해당 학생 없음 🎉') + '</div>') +
+    '</div></div>';
 };
+
+/** 반 그룹 펼침/접힘·전체 토글·카드 클릭(학생 수정) — 문서 단위 위임 1회 */
+if (!App._aff.bound) {
+  App._aff.bound = true;
+  document.addEventListener('click', function (e) {
+    var A = App._aff;
+    var allBtn = e.target.closest('[data-aff-all]');
+    if (allBtn) {
+      var ctx = allBtn.dataset.affAll;
+      var box = allBtn.closest('.affected-box');
+      var open = App.$$('.aff-group', box);
+      var allOpen = open.length && open.every(function (g) { return g.classList.contains('open'); });
+      Object.keys(A.state).forEach(function (k) { if (k.indexOf(ctx + '|') === 0) delete A.state[k]; });
+      A.state['all:' + ctx] = allOpen ? 'closed' : 'open';
+      A.save();
+      var d = A.data[ctx];
+      if (d && box) { var tmp = document.createElement('div'); tmp.innerHTML = App.affectedListHtml(d.affected, d.emptyText, d.opts); box.replaceWith(tmp.firstChild); }
+      return;
+    }
+    var head = e.target.closest('.aff-head');
+    if (head) {
+      var g = head.parentNode, gbox = g.closest('.affected-box');
+      var gctx = gbox ? gbox.dataset.ctx : 'default';
+      var nowOpen = !g.classList.contains('open');
+      g.classList.toggle('open', nowOpen);
+      A.state[gctx + '|' + g.dataset.g] = nowOpen;
+      A.save();
+      var btn = gbox && App.$('[data-aff-all]', gbox);
+      if (btn) btn.textContent = App.$$('.aff-group', gbox).every(function (x) { return x.classList.contains('open'); }) ? '전체 접기' : '전체 펼치기';
+      return;
+    }
+    var item = e.target.closest('.affected-item.clickable');
+    if (item) {
+      var st = A.students[item.dataset.row];
+      if (st) App.studentEditor(st, App.state.boot.schoolYear, function () { App.changed('students'); App.rerender(); });
+    }
+  });
+}
 
 App.views.day = {
   title: '날짜 상세',
@@ -79,13 +174,14 @@ App.views.day = {
           (res.protected ? '<button class="btn sm danger" data-revert="' + h(t) + '">NEIS 데이터로 되돌리기</button>' : '') + '</div></div>';
         if (res.protected) html += '<div class="notice info small" style="margin-bottom:10px">이 끼니는 수동 수정됨 — 자동 동기화가 건너뜁니다. NEIS 원본으로 돌리려면 "NEIS 데이터로 되돌리기"를 누르세요.</div>';
         html += '<div class="grid cols-2"><div class="list-box"><div class="list-head"><span>메뉴</span><span class="badge gray">' + res.menus.length + '개</span></div><div class="list-scroll">';
+        // 메뉴 행: 알레르기 칩은 이름 옆에 최대 3개 + "+N". 수정·삭제는 마우스 올리거나 행을 클릭했을 때만, "확인함"은 항상
         html += res.menus.length ? '<div class="menu-list">' + res.menus.map(function (m) {
-          return '<div class="menu-item' + (m.needsCheck ? ' needs' : '') + '"><span class="name">' + h(m.name) + '</span><span class="tags">' + App.codeTags(m.codes) + '</span>' + App.menuBadges(m) +
-            '<span class="ops">' + (m.needsCheck ? '<button class="btn sm" data-check="' + m._row + '" title="이 메뉴는 알레르기 유발식품이 없음을 확인했습니다">확인함</button>' : '') +
-            (m.checkedNone ? '<button class="btn sm ghost" data-uncheck="' + m._row + '">확인 취소</button>' : '') +
+          return '<div class="menu-item' + (m.needsCheck ? ' needs' : '') + '" data-menu="' + m._row + '" title="' + h(m.codeNames.join(', ')) + '"><span class="name">' + h(m.name) + '</span><span class="tags">' + App.codeTags(m.codes, null, 3) + '</span>' + App.menuBadges(m) +
+            '<span class="ops always">' + (m.needsCheck ? '<button class="btn sm" data-check="' + m._row + '" title="이 메뉴는 알레르기 유발식품이 없음을 확인했습니다">확인함</button>' : '') + '</span>' +
+            '<span class="ops hover">' + (m.checkedNone ? '<button class="btn sm ghost" data-uncheck="' + m._row + '">확인 취소</button>' : '') +
             '<button class="btn sm ghost" data-edit="' + m._row + '">수정</button><button class="btn sm ghost" data-del="' + m._row + '" style="color:var(--danger)">삭제</button></span></div>';
         }).join('') + '</div>' : '<div class="empty">메뉴가 없습니다. 동기화하거나 직접 추가하세요.</div>';
-        html += '</div></div>' + App.affectedListHtml(res.affected, res.menus.length ? '해당 학생 없음 🎉' : '') + '</div>';
+        html += '</div></div>' + App.affectedListHtml(res.affected, res.menus.length ? '해당 학생 없음 🎉' : '', { ctx: 'day:' + date + ':' + t }) + '</div>';
         if (res.uncheckedMenus.length) html += '<div class="notice warn small" style="margin-top:12px"><b>알레르기 표시가 없는 메뉴:</b> ' + h(res.uncheckedMenus.join(', ')) + ' — 실제로 없는지 확인 후 "확인함"을 누르거나 코드를 입력하세요.</div>';
         html += '</div>';
       });
@@ -100,7 +196,13 @@ App.views.day = {
       App.$('#dl').onclick = function (e) { App.downloadXlsx('day', { date: date }, e.currentTarget); };
       App.on(el, 'click', function (e) {
         var b = e.target.closest('button');
-        if (!b || !el.contains(b)) return;
+        if (!b) {
+          // 메뉴 행 클릭 → 그 행의 수정·삭제 버튼 표시 토글 (터치 화면용)
+          var mi = e.target.closest('.menu-item');
+          if (mi && el.contains(mi)) { var was = mi.classList.contains('active'); App.$$('.menu-item.active', el).forEach(function (x) { x.classList.remove('active'); }); mi.classList.toggle('active', !was); }
+          return;
+        }
+        if (!el.contains(b)) return;
         if (b.dataset.add) return App.menuEditor({ date: date, mealType: b.dataset.add }, reload);
         if (b.dataset.edit) return App.menuEditor(menusByRow[b.dataset.edit], reload);
         if (b.dataset.del) {
@@ -188,7 +290,7 @@ App.menuEditor = function (m, onSaved) {
           var kwHits = (s.keywords || []).filter(function (k) { return terms(k).some(function (t) { var nt = norm(t); return nt && name.indexOf(nt) >= 0; }); });
           if (codeHits.length || kwHits.length) hits.push({ student: s, text: codeHits.concat(kwHits).join(', ') });
         });
-        box.innerHTML = App.affectedListHtml(hits, sel.length || name ? '이 조건에 해당하는 학생이 없습니다' : '알레르기 항목을 체크하거나 메뉴명을 입력하세요');
+        box.innerHTML = App.affectedListHtml(hits, sel.length || name ? '이 조건에 해당하는 학생이 없습니다' : '알레르기 항목을 체크하거나 메뉴명을 입력하세요', { ctx: 'menu-preview', noEdit: true });
         var scroll = App.$('.list-scroll', box); if (scroll) scroll.style.maxHeight = '240px';
       }
       App.cached('students', function () { return App.api('apiStudents'); }).then(function (data) {

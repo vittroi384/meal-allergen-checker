@@ -45,7 +45,7 @@ App.views.dashboard = {
         if (!r.menus.length) { html += '<div class="empty">오늘 ' + h(t) + ' 데이터가 없습니다. 주말·방학이 아니라면 <a href="#/meals">급식 관리</a>에서 동기화하세요.</div></div>'; return; }
         html += '<div class="grid cols-2"><div class="list-box"><div class="list-head"><span>메뉴</span><span class="badge gray">' + r.menus.length + '개</span></div><div class="list-scroll"><div class="menu-list">' +
           r.menus.map(function (m) { return '<div class="menu-item' + (m.needsCheck ? ' needs' : '') + '"><span class="name">' + h(m.name) + '</span><span class="tags">' + App.codeTags(m.codes) + '</span>' + App.menuBadges(m) + '</div>'; }).join('') +
-          '</div></div></div>' + App.affectedListHtml(r.affected) + '</div></div>';
+          '</div></div></div>' + App.affectedListHtml(r.affected, '해당 학생 없음 🎉', { ctx: 'dash:' + t }) + '</div></div>';
       });
 
       if (d.failures.length) {
