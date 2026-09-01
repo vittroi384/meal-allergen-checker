@@ -206,8 +206,12 @@ var App = (function () {
     });
     $('#refresh-btn').addEventListener('click', function () { invalidate(); refreshBoot().then(renderRoute, renderRoute); });
   }
+  /** 화면을 그릴 수 있는 상태인가. 토큰은 '전체 잠금(on)' 모드에서만 필수 — off/settings 모드는 토큰 없이 렌더한다 */
+  function canRender() {
+    return !!state.boot && (state.authMode !== 'on' || !!state.token);
+  }
   function renderRoute() {
-    if (!state.token || !state.boot) return;
+    if (!canRender()) return;
     if (!$('#main')) renderLayout();
     var r = parseHash();
     state.route = r;
