@@ -81,6 +81,7 @@ App.views.print = {
         '<thead><tr><th>날짜</th><th>끼니</th><th>이름</th><th>못 먹는 메뉴 (원인)</th><th>확인</th></tr></thead>' +
         '<tbody class="pd-first">' + c.rows.slice(0, 2).map(rowHtml).join('') + '</tbody>' +
         (c.rows.length > 2 ? '<tbody>' + c.rows.slice(2).map(rowHtml).join('') + '</tbody>' : '') +
+        '<tfoot><tr><td colspan="5"></td></tr></tfoot>' +   // 쪽마다 반복되어 표 아래를 닫는 선
         '</table>';
     };
 

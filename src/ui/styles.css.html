@@ -364,11 +364,13 @@
   .pd-class b { font-size: 12pt; margin-right: 10px; }
   .pd-class span { color: #444; font-size: 9.5pt; margin-right: 10px; }
   .pd-class .n { float: right; margin-right: 3mm; }
-  /* 선은 collapse 대신 separate + 셀의 아래·왼쪽 선만: collapse 모델은 페이지가 나뉘는 곳에서 마지막 행 아래 선이 빠지는 일이 있다 */
+  /* 선 그리기: 페이지가 나뉘는 곳에서 마지막 행의 "아래 선"이 사라지는 Chromium 특성이 있어
+     행은 위 선만 그리고, 표 아래 선은 tfoot(쪽마다 반복되는 table-footer-group)의 위 선으로 닫는다 */
   .pd-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 10pt; }
-  .pd-table th, .pd-table td { border: 0; border-bottom: 1px solid #999; border-left: 1px solid #999; padding: 4px 6px; vertical-align: top; word-break: keep-all; white-space: normal; max-width: none; }
+  .pd-table th, .pd-table td { border: 0; border-top: 1px solid #999; border-left: 1px solid #999; padding: 4px 6px; vertical-align: top; word-break: keep-all; white-space: normal; max-width: none; }
   .pd-table th:last-child, .pd-table td:last-child { border-right: 1px solid #999; }
-  .pd-table thead th { border-top: 1px solid #999; }
+  .pd-table tfoot { display: table-footer-group; }
+  .pd-table tfoot td { border: 0; border-top: 1px solid #999; padding: 0; height: 0; line-height: 0; font-size: 0; }
   .pd-table th { background: #eee; font-weight: 700; text-align: center; white-space: nowrap; }
   .pd-table td.c { text-align: center; white-space: nowrap; }
   .pd-table td.menu { overflow-wrap: anywhere; }
