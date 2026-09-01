@@ -46,6 +46,9 @@
   .card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
   .card-head h3 { display: flex; align-items: center; gap: 8px; }
   .stat { display: flex; flex-direction: column; gap: 2px; }
+  .stat.clickable { cursor: pointer; transition: box-shadow .12s, border-color .12s; }
+  .stat.clickable:hover { border-color: #fbbf24; box-shadow: 0 0 0 2px #fef3c7; }
+  .stat:not(.clickable) .hint b { font-weight: 500; color: var(--muted); }
   .stat .label { color: var(--muted); font-size: 12.5px; font-weight: 600; }
   .stat .value { font-size: 28px; font-weight: 800; letter-spacing: -.02em; }
   .stat .value.danger { color: var(--danger); }

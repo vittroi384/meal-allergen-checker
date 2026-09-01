@@ -24,8 +24,8 @@ App.views.dashboard = {
         '<div class="page-head"><div><h2>' + h(d.todayLabel) + '</h2><div class="sub">' + (boot.settings['학교명'] ? h(boot.settings['학교명']) + ' · ' : '') + boot.schoolYear + '학년도 · 관리 끼니: ' + d.mealTypes.join(', ') + '</div></div>' +
         '<div class="actions"><a class="btn" href="#/day/' + d.today + '">오늘 상세</a><a class="btn" href="#/print">반별 인쇄</a><a class="btn" href="#/board" title="오늘 해당 학생만 큰 글씨로 전체 화면 표시 (F11 로 브라우저 전체화면, Esc 로 나가기)">📺 전광판</a><button class="btn primary" id="dl-today">오늘 결과 xlsx</button></div></div>' +
         '<div class="grid cols-4" style="margin-bottom:16px">' +
-        '<div class="card stat"><span class="label">오늘 해당 학생</span><span class="value ' + (totalToday ? 'danger' : 'ok') + '">' + (hasMealsToday ? totalToday + '명' : '—') + '</span><span class="hint">' + (hasMealsToday ? '급식 못 먹는 학생' : '오늘 급식 데이터 없음') + '</span></div>' +
-        '<div class="card stat"><span class="label">오늘 확인 필요 메뉴</span><span class="value ' + (unchecked ? 'warn' : '') + '">' + unchecked + '</span><span class="hint">알레르기 표시가 없는 메뉴</span></div>' +
+        '<div class="card stat"><span class="label">오늘 해당 학생</span><span class="value ' + (totalToday ? 'danger' : 'ok') + '" id="stat-today">' + (hasMealsToday ? totalToday + '명' : '—') + '</span><span class="hint">' + (hasMealsToday ? '급식 못 먹는 학생' : '오늘 급식 데이터 없음') + '</span></div>' +
+        '<div class="card stat' + (unchecked ? ' clickable' : '') + '" id="unchecked-card" title="누르면 하나씩 검토합니다"><span class="label">오늘 확인 필요 메뉴</span><span class="value ' + (unchecked ? 'warn' : '') + '" id="stat-unchecked">' + unchecked + '</span><span class="hint">알레르기 표시가 없는 메뉴 · <b>누르면 일괄 검토</b></span></div>' +
         '<div class="card stat"><span class="label">이번 달 확인 필요</span><span class="value ' + (d.monthUnchecked ? 'warn' : '') + '">' + d.monthUnchecked + '</span><span class="hint"><a href="#/meals">급식 관리에서 처리</a></span></div>' +
         '<div class="card stat"><span class="label">판별 대상 학생</span><span class="value">' + d.activeStudentCount + '<span style="font-size:14px;color:var(--muted);font-weight:600"> / ' + d.studentCount + '</span></span><span class="hint">' + (d.lastSync ? '마지막 동기화 ' + h(d.lastSync.at || '') + (d.lastSync.ok ? '' : ' (실패)') : '동기화 기록 없음') + '</span></div>' +
         '</div>';
@@ -50,11 +50,34 @@ App.views.dashboard = {
           out += '<div class="card"><div class="card-head"><h3>' + h(lbl) + ' ' + h(t) + ' <span class="badge ' + (r.count ? 'danger' : 'ok') + '">' + (r.menus.length ? '해당 ' + r.count + '명' : '데이터 없음') + '</span>' + (r.protected ? '<span class="badge purple">수동 보호</span>' : '') + '</h3>' +
             '<div class="actions">' + (isToday ? '' : '<a class="btn sm ghost" href="#/dashboard" data-today title="오늘 패널로">↩ 오늘로 돌아가기</a>') + '<a class="btn sm" href="#/day/' + date + '">메뉴 편집</a></div></div>';
           if (!r.menus.length) { out += '<div class="empty">' + h(lbl) + ' ' + h(t) + ' 데이터가 없습니다. 주말·방학이 아니라면 <a href="#/meals">급식 관리</a>에서 동기화하세요.</div></div>'; return; }
-          out += '<div class="grid cols-2"><div class="list-box"><div class="list-head"><span>메뉴</span><span class="badge gray">' + r.menus.length + '개</span></div><div class="list-scroll"><div class="menu-list">' +
-            r.menus.map(function (m) { return '<div class="menu-item' + (m.needsCheck ? ' needs' : '') + '" title="' + h((m.codeNames || []).join(', ')) + '"><span class="name">' + h(m.name) + '</span><span class="tags">' + App.codeTags(m.codes, null, 3) + '</span>' + App.menuBadges(m) + '</div>'; }).join('') +
-            '</div></div></div>' + App.affectedListHtml(r.affected, '해당 학생 없음 🎉', { ctx: 'dash:' + date + ':' + t }) + '</div></div>';
+          // 메뉴 목록은 날짜 상세와 같은 공용 컴포넌트: 노란 행 클릭 → 확인 팝오버, 행 클릭 → 수정, ··· → 수정/확인 취소/삭제
+          out += '<div class="grid cols-2"><div class="list-box"><div class="list-head"><span>메뉴</span><span class="badge gray">' + r.menus.length + '개</span></div><div class="list-scroll">' +
+            App.menuListHtml(r.menus, { ctx: 'dash:' + date + ':' + t, reload: reloadPanels }) +
+            '</div></div>' + App.affectedListHtml(r.affected, '해당 학생 없음 🎉', { ctx: 'dash:' + date + ':' + t }) + '</div></div>';
         });
         return out;
+      };
+      /** 메뉴를 고친 뒤: 선택 날짜의 판별만 다시 받아 패널 내용 교체 (오늘이면 상단 카드 숫자도 갱신). 대시보드 전체 리렌더 없음 */
+      var reloadPanels = function () {
+        App.changed('meals');
+        var date = self._selected || d.today;
+        var panels = App.$('#day-panels', el);
+        if (panels) panels.classList.add('loading');
+        return App.api('apiDay', date).then(function (day) {
+          App.cachePut('day:' + date, day);
+          if (date === d.today) {
+            d.mealTypes.forEach(function (t) { d.todayByType[t] = day.byType[t]; });
+            var tot = 0, unc = 0;
+            d.mealTypes.forEach(function (t) { tot += day.byType[t].count; unc += day.byType[t].uncheckedMenus.length; });
+            var s1 = App.$('#stat-today', el), s2 = App.$('#stat-unchecked', el);
+            if (s1) { s1.textContent = tot + '명'; s1.className = 'value ' + (tot ? 'danger' : 'ok'); }
+            if (s2) { s2.textContent = unc; s2.className = 'value ' + (unc ? 'warn' : ''); }
+            var card = App.$('#unchecked-card', el); if (card) card.classList.toggle('clickable', unc > 0);
+          }
+          if (!panels || self._selected !== date) return;
+          panels.innerHTML = panelsHtml(date, day.byType);
+          panels.classList.remove('loading');
+        }).catch(function (err) { if (panels) panels.classList.remove('loading'); App.toast('불러오지 못했습니다: ' + err.message, 'danger'); });
       };
       html += '<div id="day-panels">' + panelsHtml(d.today, d.todayByType) + '</div>';
 
@@ -80,6 +103,13 @@ App.views.dashboard = {
         }
         var back = e.target.closest('[data-today]');
         if (back) { e.preventDefault(); selectDate(d.today); return; }
+        // 상단 "오늘 확인 필요 메뉴" 카드 → 일괄 검토 모달 (오늘의 확인 필요 메뉴 전부)
+        if (e.target.closest('#unchecked-card.clickable')) {
+          var list = [];
+          d.mealTypes.forEach(function (t) { d.todayByType[t].menus.forEach(function (m) { if (m.needsCheck) list.push(m); }); });
+          if (self._selected !== d.today) selectDate(d.today);
+          return App.reviewUnchecked(list, { date: d.today, mealType: d.mealTypes.join('·') }, reloadPanels);
+        }
         var c = e.target.closest('[data-day]'); if (c) selectDate(c.dataset.day);
       });
 
