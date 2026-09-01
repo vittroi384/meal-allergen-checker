@@ -38,7 +38,7 @@ function serializeStudent_(s) {
 function serializeMenu_(m) {
   return {
     _row: m._row || null, date: m.date, mealType: m.mealType, name: m.name, codes: m.codes, codeNames: allergenNames(m.codes),
-    needsCheck: m.needsCheck, checkedNone: m.checkedNone, source: m.source, manualEdited: m.manualEdited, raw: m.raw,
+    needsCheck: m.needsCheck, checkedNone: m.checkedNone, source: m.source, manualEdited: m.manualEdited, raw: m.raw, checkedAt: m.checkedAt || '',
   };
 }
 

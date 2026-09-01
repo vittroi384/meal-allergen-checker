@@ -45,7 +45,7 @@ var HEADERS = Object.freeze({
     '학년도', '학년', '반', '이름', '담임이름', '담임전화번호', '알레르기코드', '기타알레르기', '비고',
     '학부모이메일', '학부모연락처', '학부모알림', '사용여부',
   ]),
-  MEALS: Object.freeze(['날짜', '식사구분', '메뉴명', '알레르기코드', '출처', '수동수정여부', '원본문자열']),
+  MEALS: Object.freeze(['날짜', '식사구분', '메뉴명', '알레르기코드', '출처', '수동수정여부', '원본문자열', '확인시각']),
   LOGS: Object.freeze(['발송시각', '채널', '종류', '수신자', '대상일', '내용요약', '성공여부', '오류', '중복키']),
   SETTINGS: Object.freeze(['키', '값', '설명']),
 });
@@ -59,7 +59,7 @@ var FIELD_MAP = Object.freeze({
   }),
   MEALS: Object.freeze({
     '날짜': 'date', '식사구분': 'mealType', '메뉴명': 'name', '알레르기코드': 'codes',
-    '출처': 'source', '수동수정여부': 'manualEdited', '원본문자열': 'raw',
+    '출처': 'source', '수동수정여부': 'manualEdited', '원본문자열': 'raw', '확인시각': 'checkedAt',
   }),
   LOGS: Object.freeze({
     '발송시각': 'sentAt', '채널': 'channel', '종류': 'kind', '수신자': 'recipient', '대상일': 'targetDate',

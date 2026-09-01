@@ -17,10 +17,11 @@ function apiSaveMenu(token, m) {
   if (m._row) {
     var existing = readMeals_().filter(function (x) { return x._row === m._row; })[0];
     if (!existing) throw new Error('수정할 메뉴를 찾지 못했습니다. 새로고침 후 다시 시도하세요');
+    var checkedAt = codesStr === CODES_CHECKED_NONE ? (existing.checkedNone && existing.checkedAt ? existing.checkedAt : nowStr_().slice(0, 16)) : '';
     updateObjectRow_(SHEETS.MEALS, m._row, HEADERS.MEALS, FIELD_MAP.MEALS,
-      { date: m.date, mealType: m.mealType, name: name, codes: codesStr, manualEdited: true });
+      { date: m.date, mealType: m.mealType, name: name, codes: codesStr, manualEdited: true, checkedAt: checkedAt });
   } else {
-    appendMeals_([{ date: m.date, mealType: m.mealType, name: name, codes: codesStr, source: SOURCES.MANUAL, manualEdited: true, raw: '' }]);
+    appendMeals_([{ date: m.date, mealType: m.mealType, name: name, codes: codesStr, source: SOURCES.MANUAL, manualEdited: true, raw: '', checkedAt: codesStr === CODES_CHECKED_NONE ? nowStr_().slice(0, 16) : '' }]);
   }
   _protectMeal(m.date, m.mealType);
   return { ok: true };
@@ -57,7 +58,8 @@ function apiMarkMenuChecked(token, row, checked) {
   var target = readMeals_().filter(function (x) { return x._row === row; })[0];
   if (!target) throw new Error('메뉴를 찾지 못했습니다');
   if (target.codes.length) throw new Error('알레르기 코드가 있는 메뉴는 확인 처리 대상이 아닙니다');
-  updateObjectRow_(SHEETS.MEALS, row, HEADERS.MEALS, FIELD_MAP.MEALS, { codes: checked ? CODES_CHECKED_NONE : '', manualEdited: true });
+  // 확인 시각은 문자열로 기록 (시트가 날짜로 자동 변환해도 읽을 때 cellToDateTimeStr_ 로 복원)
+  updateObjectRow_(SHEETS.MEALS, row, HEADERS.MEALS, FIELD_MAP.MEALS, { codes: checked ? CODES_CHECKED_NONE : '', manualEdited: true, checkedAt: checked ? nowStr_().slice(0, 16) : '' });
   _protectMeal(target.date, target.mealType);
   return { ok: true };
 }

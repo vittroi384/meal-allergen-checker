@@ -167,6 +167,7 @@ function normalizeMenu(m) {
     source: m.source || SOURCES.NEIS,
     manualEdited: toBool(m.manualEdited, false),
     raw: m.raw || '',
+    checkedAt: m.checkedAt === undefined || m.checkedAt === null ? '' : m.checkedAt, // '없음 확인' 처리 시각 (표시용)
   };
 }
 

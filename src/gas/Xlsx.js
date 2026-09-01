@@ -211,7 +211,7 @@ function apiPrintDataInternal_(p, settings) {
 function buildMealsExport_(ym) {
   var range = monthRange(ym);
   var rows = readMealsInRange_(range.start, range.end, MEAL_TYPES).map(function (m) {
-    return [m.date, m.mealType, m.name, m.checkedNone ? CODES_CHECKED_NONE : formatAllergyCodes(m.codes), m.source, m.manualEdited ? 'TRUE' : 'FALSE', m.raw];
+    return [m.date, m.mealType, m.name, m.checkedNone ? CODES_CHECKED_NONE : formatAllergyCodes(m.codes), m.source, m.manualEdited ? 'TRUE' : 'FALSE', m.raw, m.checkedAt || ''];
   });
-  return [{ name: '급식', headers: HEADERS.MEALS.slice(), rows: rows, widths: [110, 85, 240, 140, 75, 110, 300] }, _CODE_TABLE_SHEET];
+  return [{ name: '급식', headers: HEADERS.MEALS.slice(), rows: rows, widths: [110, 85, 240, 140, 75, 110, 300, 130] }, _CODE_TABLE_SHEET];
 }

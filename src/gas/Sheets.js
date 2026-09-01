@@ -142,9 +142,17 @@ function readMeals_() {
   return cached_('meals', function () {
     return readTable_(SHEETS.MEALS, FIELD_MAP.MEALS).map(function (m) {
       m.date = cellToDateStr(m.date);
+      m.checkedAt = cellToDateTimeStr_(m.checkedAt);
       return normalizeMenu(m);
     });
   });
+}
+
+/** 시트 셀(Date 또는 문자열) → 'yyyy-MM-dd HH:mm' (Asia/Seoul). 비어 있으면 '' */
+function cellToDateTimeStr_(v) {
+  if (v === undefined || v === null || v === '') return '';
+  if (Object.prototype.toString.call(v) === '[object Date]') return isNaN(v.getTime()) ? '' : Utilities.formatDate(v, 'Asia/Seoul', 'yyyy-MM-dd HH:mm');
+  return String(v).slice(0, 16);
 }
 
 /** 기간·끼니로 필터한 급식 행 */

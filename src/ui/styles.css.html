@@ -254,8 +254,22 @@
   .menu-item.row .tags { justify-content: flex-end; }
   .menu-item.row .badges { display: flex; justify-content: flex-end; gap: 4px; }
   .menu-item.row .badges:empty::before { content: ''; }
-  .badge.clickable { border: 0; cursor: pointer; font: inherit; font-size: 11.5px; font-weight: 700; line-height: inherit; }
-  .badge.clickable:hover { filter: brightness(.94); box-shadow: 0 0 0 2px #fde68a; }
+  .menu-item.row.confirm-del { grid-template-columns: 1fr; background: #fff1f2; border-color: #fecaca; cursor: default; }
+  .menu-item.row .del-inline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13.5px; }
+  .menu-item.row .del-inline b { color: var(--danger); }
+  .menu-item.row .del-inline .sp { flex: 1; }
+  .popover { position: absolute; z-index: 60; width: 300px; max-width: calc(100vw - 16px); background: #fff; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 30px rgba(15,23,42,.16); padding: 12px 14px; }
+  .popover .pop-text { font-size: 13.5px; line-height: 1.5; color: var(--text); margin-bottom: 10px; word-break: keep-all; }
+  .popover .pop-text b { font-weight: 700; }
+  .popover .pop-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+  /* 일괄 검토 모달 */
+  .review-item { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: #fffbeb; }
+  .review-item .rv-name { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+  .review-item .rv-raw { font-size: 12.5px; color: var(--muted); font-family: ui-monospace, Consolas, monospace; background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; margin-top: 6px; word-break: break-all; }
+  .review-item .rv-meta { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+  .review-progress { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--muted); margin-bottom: 10px; }
+  .review-progress .bar { flex: 1; height: 6px; background: #e5e7eb; border-radius: 999px; margin: 0 12px; overflow: hidden; }
+  .review-progress .bar i { display: block; height: 100%; background: var(--primary); transition: width .2s; }
   .menu-item .more-btn { width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 16px; font-weight: 800; line-height: 1; letter-spacing: 1px; cursor: pointer; padding: 0; }
   .menu-item .more-btn:hover { background: #e5e7eb; color: var(--text); }
   .dropdown { position: absolute; z-index: 60; min-width: 150px; background: #fff; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 30px rgba(15,23,42,.14); padding: 4px; }
