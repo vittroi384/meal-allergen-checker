@@ -370,7 +370,7 @@
   .pd-table th, .pd-table td { border: 0; border-top: 1px solid #999; border-left: 1px solid #999; padding: 4px 6px; vertical-align: top; word-break: keep-all; white-space: normal; max-width: none; }
   .pd-table th:last-child, .pd-table td:last-child { border-right: 1px solid #999; }
   .pd-table tfoot { display: table-footer-group; }
-  .pd-table tfoot td { border: 0; border-top: 1px solid #999; padding: 0; height: 0; line-height: 0; font-size: 0; }
+  .pd-table tfoot td { border: 0; border-top: 1px solid #999; padding: 0; height: 1px; line-height: 0; font-size: 0; }  /* 높이 0 이면 선이 안 그려지므로 1px 높이 + 위 선 (배경 아님 → 배경 그래픽 꺼도 인쇄됨) */
   .pd-table th { background: #eee; font-weight: 700; text-align: center; white-space: nowrap; }
   .pd-table td.c { text-align: center; white-space: nowrap; }
   .pd-table td.menu { overflow-wrap: anywhere; }
@@ -434,7 +434,7 @@
     html, body { height: auto !important; overflow: visible !important; }
     #app, #app > *, .main, #p-body, .print-doc, .print-doc.l, .pd-sec { display: block !important; height: auto !important; max-height: none !important; overflow: visible !important; position: static !important; }
     .print-doc, .print-doc.l { width: auto; min-height: 0; margin: 0; padding: 0; border: 0; box-shadow: none; }
-    .pd-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .pd-table th, .pd-table tfoot td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .table-wrap { border: 0; overflow: visible; }
     th { position: static; background: #f3f4f6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     th, td { padding: 5px 8px; border: 1px solid #d1d5db; white-space: nowrap; word-break: keep-all; }
