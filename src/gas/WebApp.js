@@ -111,11 +111,32 @@ function apiDashboard(token) {
   var today = todayStr_();
   // 판별 결과는 캐시(학생/급식/설정 변경 시 즉시 무효화), 로그·동기화 상태는 매번 최신
   var core = cached_('dashboard:' + today, function () { return _buildDashboardCore(today); });
-  core.failures = readLogs_(100).filter(function (l) { return l.ok !== true && l.ok !== 'TRUE'; }).slice(0, 5)
-    .map(function (l) { return { sentAt: String(l.sentAt), kind: l.kind, channel: l.channel, error: l.error, summary: l.summary }; });
+  core.failures = _recentFailures(5);
   core.lastSync = lastSyncInfo_();
   core.schoolConfigured = !!(core.schoolCode && hasSecret('NEIS_API_KEY'));
   return core;
+}
+
+/**
+ * 대시보드에 보여줄 최근 실패 로그.
+ * "숨기기"(FAILURES_DISMISSED_AT) 이후에 생긴 것, 그리고 최근 7일 이내 것만.
+ */
+function _recentFailures(limit) {
+  var dismissedAt = getState('FAILURES_DISMISSED_AT');
+  var since = Utilities.formatDate(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), 'Asia/Seoul', 'yyyy-MM-dd');
+  return readLogs_(100).filter(function (l) {
+    if (l.ok === true || l.ok === 'TRUE') return false;
+    var at = String(l.sentAt);
+    return at.slice(0, 10) >= since && (!dismissedAt || at > dismissedAt);
+  }).slice(0, limit)
+    .map(function (l) { return { sentAt: String(l.sentAt), kind: l.kind, channel: l.channel, error: l.error, summary: l.summary }; });
+}
+
+/** 현재까지의 실패 알림을 대시보드에서 숨긴다 (로그는 그대로, 새 실패는 다시 표시) */
+function apiDismissFailures(token) {
+  requireSession(token);
+  setState('FAILURES_DISMISSED_AT', nowStr_());
+  return { ok: true };
 }
 
 function _buildDashboardCore(today) {

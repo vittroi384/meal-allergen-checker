@@ -17,7 +17,7 @@ App.views.dashboard = {
 
       var notices = '';
       if (!d.schoolConfigured) notices += '<div class="notice warn" style="margin-bottom:12px">NEIS 인증키 또는 학교가 설정되지 않았습니다. <a href="#/settings">설정</a>에서 등록하면 급식이 자동으로 들어옵니다.</div>';
-      if (d.failures.length) notices += '<div class="notice danger" style="margin-bottom:12px">최근 알림 실패 ' + d.failures.length + '건 — <a href="#/logs?failed=1">로그 보기</a></div>';
+      if (d.failures.length) notices += '<div class="notice danger" style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="flex:1 1 auto">최근 알림 실패 ' + d.failures.length + '건 — <a href="#/logs?failed=1">로그 보기</a></span><button class="btn sm" data-dismiss-fail>확인함 · 숨기기</button></div>';
 
       var html = notices +
         '<div class="page-head"><div><h2>' + h(d.todayLabel) + '</h2><div class="sub">' + (boot.settings['학교명'] ? h(boot.settings['학교명']) + ' · ' : '') + boot.schoolYear + '학년도 · 관리 끼니: ' + d.mealTypes.join(', ') + '</div></div>' +
@@ -49,12 +49,27 @@ App.views.dashboard = {
       });
 
       if (d.failures.length) {
-        html += '<div class="card"><div class="card-head"><h3>최근 알림 실패</h3><a class="btn sm" href="#/logs?failed=1">전체 보기</a></div><div class="table-wrap"><table><thead><tr><th>시각</th><th>종류</th><th>채널</th><th>오류</th></tr></thead><tbody>' +
+        html += '<div class="card"><div class="card-head"><h3>최근 알림 실패 <span class="badge gray">7일 이내</span></h3><div class="actions"><a class="btn sm" href="#/logs?failed=1">전체 보기</a><button class="btn sm" data-dismiss-fail title="지금까지의 실패를 대시보드에서 숨깁니다. 로그는 남고, 새로 실패하면 다시 표시됩니다.">확인함 · 숨기기</button></div></div><div class="table-wrap"><table><thead><tr><th>시각</th><th>종류</th><th>채널</th><th>오류</th></tr></thead><tbody>' +
           d.failures.map(function (f) { return '<tr><td>' + h(f.sentAt) + '</td><td>' + h(f.kind) + '</td><td>' + h(f.channel) + '</td><td class="wrap">' + h(f.error || f.summary) + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
       }
       el.innerHTML = html;
       App.$('#dl-today').onclick = function (e) { App.downloadXlsx('day', { date: d.today }, e.currentTarget); };
-      App.on(el, 'click', function (e) { var c = e.target.closest('[data-day]'); if (c) App.go('day/' + c.dataset.day); });
+      App.on(el, 'click', function (e) {
+        var dis = e.target.closest('[data-dismiss-fail]');
+        if (dis) {
+          App.$$('[data-dismiss-fail]').forEach(function (b) { b.disabled = true; });
+          App.api('apiDismissFailures').then(function () {
+            App.invalidate(['dashboard']);
+            App.toast('실패 알림을 숨겼습니다. 새로 실패하면 다시 표시됩니다.', 'ok');
+            return App.views.dashboard.render(el);
+          }).catch(function (err) {
+            App.$$('[data-dismiss-fail]').forEach(function (b) { b.disabled = false; });
+            App.toast('숨기기 실패: ' + err.message, 'danger');
+          });
+          return;
+        }
+        var c = e.target.closest('[data-day]'); if (c) App.go('day/' + c.dataset.day);
+      });
     });
   },
 };

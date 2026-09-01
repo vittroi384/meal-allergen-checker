@@ -131,6 +131,7 @@ var STATE_KEYS = Object.freeze([
   'LAST_SYNC_RESULT',
   'DEPLOYMENT_ID',
   'AUTH_MODE',
+  'FAILURES_DISMISSED_AT', // 대시보드 "실패 알림 숨기기" 시각 — 이 시각 이전 실패는 표시 안 함
 ]);
 
 var SESSION_TTL_SECONDS = 6 * 60 * 60; // CacheService 상한
