@@ -4,13 +4,7 @@
  */
 
 function doGet(e) {
-  try {
-    var url = ScriptApp.getService().getUrl();
-    if (url && getState('WEBAPP_URL') !== url) {
-      setState('WEBAPP_URL', url);
-      writeSettings({ '웹앱URL': url });
-    }
-  } catch (err) { /* 무시 */ }
+  try { recordWebAppUrl_(); } catch (err) { /* 무시 */ }
   var t = HtmlService.createTemplateFromFile('ui/index');
   t.schoolName = '';
   try { t.schoolName = readSettings()['학교명'] || ''; } catch (err) { /* 초기 설정 전 */ }
@@ -90,7 +84,7 @@ function apiBootstrap(token) {
     allMealTypes: MEAL_TYPES,
     allergens: ALLERGENS,
     keywordList: parseKeywordList(settings['기타알레르기목록']),
-    webAppUrl: getState('WEBAPP_URL') || settings['웹앱URL'] || '',
+    webAppUrl: webAppUrl_(settings),
     lastSync: lastSyncInfo_(),
     triggers: listOurTriggers_(),
     emailQuota: MailApp.getRemainingDailyQuota(),

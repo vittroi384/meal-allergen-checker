@@ -79,7 +79,7 @@ function runStaffDaily_(opts) {
   if (!o.force && !settingBool_(settings, '담당자일일알림')) return { sent: 0, summary: '담당자 일일 알림이 꺼져 있습니다' };
   var date = o.date || todayStr_();
   var byType = checkDate_(date, settings);
-  var msg = formatStaffDaily({ date: date, schoolName: settings['학교명'], byType: byType, webAppUrl: getState('WEBAPP_URL') || settings['웹앱URL'] });
+  var msg = formatStaffDaily({ date: date, schoolName: settings['학교명'], byType: byType, webAppUrl: webAppUrl_(settings) });
   if (!msg.hasMeals && !o.force && !settingBool_(settings, '주말공휴일알림')) {
     return { sent: 0, summary: date + ' 급식 데이터가 없어 발송하지 않음' };
   }
@@ -98,7 +98,7 @@ function runStaffWeekly_(opts) {
   var wr = weekRange(today);
   var mealTypes = managedMealTypes_(settings);
   var period = checkPeriod(readActiveStudents_(settings), readMealsInRange_(wr.start, wr.end, mealTypes), mealTypes);
-  var msg = formatStaffWeekly({ weekStart: wr.start, weekEnd: wr.end, schoolName: settings['학교명'], period: period, webAppUrl: getState('WEBAPP_URL') || settings['웹앱URL'] });
+  var msg = formatStaffWeekly({ weekStart: wr.start, weekEnd: wr.end, schoolName: settings['학교명'], period: period, webAppUrl: webAppUrl_(settings) });
   var r = sendToStaff_(settings, o.test ? NOTICE_KINDS.TEST : NOTICE_KINDS.STAFF_WEEKLY, wr.start, msg, o.test ? String(Date.now()) : '');
   return { sent: r.sent, failed: r.failed, skipped: r.skipped, summary: '주간 알림: 발송 ' + r.sent + ', 실패 ' + r.failed + ', 건너뜀 ' + r.skipped };
 }
@@ -184,7 +184,7 @@ function runParentNotices_(opts) {
 function sendSyncResultNotice_(result) {
   var settings = readSettings();
   var msg = formatSyncResult({ ok: result.ok, schoolName: settings['학교명'], months: result.months, stats: result.stats,
-    uncheckedCount: result.uncheckedCount, error: result.error, webAppUrl: getState('WEBAPP_URL') || settings['웹앱URL'] });
+    uncheckedCount: result.uncheckedCount, error: result.error, webAppUrl: webAppUrl_(settings) });
   return sendToStaff_(settings, NOTICE_KINDS.SYNC_RESULT, todayStr_(), msg, (result.months || []).join(',') + '|' + (result.ok ? 'ok' : 'err'));
 }
 

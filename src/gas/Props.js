@@ -44,6 +44,27 @@ function setState(key, value) {
   else props_().deleteProperty(key);
 }
 
+// ---------- 웹앱 URL ----------
+
+/**
+ * 외부 공유용 웹앱 URL (항상 https://script.google.com/macros/s/{id}/exec 형태).
+ * Workspace 계정은 getUrl() 이 조직 전용 /a/macros/{도메인}/ 주소를 주므로 저장·표시 모두 정규화한다.
+ */
+function webAppUrl_(settings) {
+  return normalizeWebAppUrl(getState('WEBAPP_URL') || (settings || readSettings())['웹앱URL'] || '');
+}
+
+/** ScriptApp 이 알려주는 현재 배포 URL 을 정규화해 상태·설정 시트에 기록. 배포 전이면 아무것도 안 함 */
+function recordWebAppUrl_() {
+  var url = normalizeWebAppUrl(ScriptApp.getService().getUrl());
+  if (!url) return '';
+  if (getState('WEBAPP_URL') !== url) {
+    setState('WEBAPP_URL', url);
+    writeSettings({ '웹앱URL': url });
+  }
+  return url;
+}
+
 // ---------- 설정 시트 ----------
 
 /** 설정 시트 → { 키: 값(문자열 또는 불리언) }. 없는 키는 기본값. 캐시됨(설정 변경 시 무효화). */

@@ -62,10 +62,7 @@ function setup() {
     setPassword_(newPassword);
   }
 
-  try {
-    var url = ScriptApp.getService().getUrl();
-    if (url) { setState('WEBAPP_URL', url); writeSettings({ '웹앱URL': url }); }
-  } catch (e) { /* 배포 전에는 URL 없음 */ }
+  try { recordWebAppUrl_(); } catch (e) { /* 배포 전에는 URL 없음 */ }
 
   var msg = report.join('\n');
   if (newPassword) {
@@ -300,16 +297,19 @@ function listOurTriggers_() {
 // ---------- 메뉴 항목 ----------
 
 function menuOpenWebApp() {
-  var url = getState('WEBAPP_URL') || readSettings()['웹앱URL'];
+  // 메뉴를 열 때마다 최신 배포 URL 을 다시 읽어(조직 주소 → 표준 주소 정규화 포함) 기록
+  var url = '';
+  try { url = recordWebAppUrl_(); } catch (e) { /* 배포 전 */ }
+  if (!url) url = webAppUrl_();
   if (!url) {
     _alert('웹앱 URL 없음', '아직 웹앱이 배포되지 않았습니다.\n확장 프로그램 → Apps Script → 배포 → 새 배포 → 유형 "웹 앱" 으로 배포한 뒤, 웹앱에 한 번 접속하면 URL 이 자동 기록됩니다.');
     return;
   }
   var html = HtmlService.createHtmlOutput(
     '<div style="font-family:sans-serif;padding:8px"><p>아래 링크를 클릭하세요.</p>' +
-    '<p><a href="' + url + '" target="_blank" rel="noopener" style="font-size:15px">' + url + '</a></p>' +
-    '<p style="color:#6b7280;font-size:12px">이 링크를 학교 담당자에게 공유하면 됩니다 (비밀번호 필요).</p></div>'
-  ).setWidth(520).setHeight(160);
+    '<p><a href="' + url + '" target="_blank" rel="noopener" style="font-size:15px;word-break:break-all">' + url + '</a></p>' +
+    '<p style="color:#6b7280;font-size:12px">이 링크를 학교 담당자에게 공유하면 됩니다. 조직 계정 여부와 관계없이 열리는 표준 주소(<code>/macros/s/…/exec</code>)입니다.</p></div>'
+  ).setWidth(560).setHeight(180);
   SpreadsheetApp.getUi().showModalDialog(html, '웹앱 열기');
 }
 
