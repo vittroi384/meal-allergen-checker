@@ -217,6 +217,11 @@ var App = (function () {
     state.route = r;
     $$('[data-nav]').forEach(function (a) { a.classList.toggle('active', a.dataset.nav === r.name); });
     var view = views[r.name] || views.dashboard;
+    // 떠나는 화면의 정리 훅 (타이머·전역 리스너·body 클래스 등). 전광판처럼 화면 밖 상태를 만드는 뷰가 구현한다
+    if (state.view && state.view !== view && typeof state.view.leave === 'function') {
+      try { state.view.leave(); } catch (e) { /* 무시 */ }
+    }
+    state.view = view;
     var main = $('#main');
     main.innerHTML = skeleton(view.skeleton || 'table');
     document.title = (view.title || '') + ' · 급식 알레르기 판별';
@@ -264,10 +269,33 @@ var App = (function () {
     }).catch(function (e) { if (e.message !== 'AUTH_REQUIRED') { setToken(null); renderLogin(e.message); } });
   }
   function refreshBoot() { return api('apiBootstrap').then(function (b) { state.boot = b; return b; }); }
+  /**
+   * HtmlService 는 앱을 2겹 iframe 안에 띄우므로 주소창의 #/board 같은 해시가 여기(안쪽 프레임)까지 오지 않는다.
+   * google.script.url.getLocation 으로 바깥 주소의 해시(또는 ?page=board)를 읽어 초기 라우트로 삼고,
+   * 이후 화면 이동은 google.script.history.replaceState 로 바깥 주소창에 되비춘다 (북마크·바로 열기용).
+   */
+  function syncOuterLocation() {
+    return new Promise(function (resolve) {
+      try {
+        google.script.url.getLocation(function (loc) {
+          try {
+            var outer = (loc && loc.hash) ? String(loc.hash).replace(/^#?\/?/, '') : '';
+            if (!outer && loc && loc.parameter && loc.parameter.page) outer = String(loc.parameter.page).replace(/^\/+/, '');
+            if (outer && !location.hash.replace(/^#\/?/, '')) location.hash = '#/' + outer;
+          } catch (e) { /* 무시 */ }
+          resolve();
+        });
+      } catch (e) { resolve(); }
+    });
+  }
+  function mirrorHashToOuter() {
+    try { google.script.history.replaceState(null, null, location.hash.replace(/^#/, '')); } catch (e) { /* HtmlService 밖 */ }
+  }
   function start() {
-    window.addEventListener('hashchange', renderRoute);
+    window.addEventListener('hashchange', function () { mirrorHashToOuter(); renderRoute(); });
     // 인증 모드 확인 후 시작: off/settings 는 로그인 없이 바로, on 은 로그인 필요
-    apiNoAuth('apiAuthInfo').then(function (info) {
+    Promise.all([apiNoAuth('apiAuthInfo'), syncOuterLocation()]).then(function (results) {
+      var info = results[0];
       state.authMode = info.mode || 'off';
       var t = loadToken();
       if (state.authMode !== 'on') { state.token = t; $('#app').innerHTML = skeleton('dashboard'); return boot(); }

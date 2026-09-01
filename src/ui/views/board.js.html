@@ -1,0 +1,184 @@
+<script>
+/**
+ * 전광판 모드 (#/board): 오늘 해당 학생만 큰 글씨로 전체 화면 표시.
+ * - 대시보드 API(apiDashboard) 데이터를 그대로 사용 (서버 변경 없음)
+ * - 화면에 다 안 들어가면 8초 간격 자동 페이지 넘김, 학생 수에 따라 글자 크기 자동 조절
+ * - 5분마다 서버에서 다시 받아 메뉴 수정 반영, Esc 또는 구석 버튼으로 나가기
+ */
+App.views.board = {
+  title: '전광판',
+  skeleton: 'dashboard',
+  FLIP_MS: 8000,
+  REFRESH_MS: 5 * 60 * 1000,
+
+  render: function (el) {
+    var self = this;
+    var h = App.h;
+    self.leave();
+    document.body.classList.add('board-mode');
+    self.page = 0;
+    self.pages = [0];
+    self._timers = [];
+    el.innerHTML = '<div class="board" id="board"><div class="board-msg none"><small>불러오는 중…</small></div></div>' +
+      '<div class="board-foot"><span class="board-refresh" id="board-refresh"></span><span class="board-page" id="board-page"></span>' +
+      '<button class="board-exit" id="board-exit" title="Esc">✕ 나가기</button></div>';
+    App.$('#board-exit').onclick = function () { App.go('dashboard'); };
+
+    self._keyHandler = function (e) {
+      if (e.key === 'Escape') { App.go('dashboard'); return; }
+      if (e.key === 'ArrowRight' || e.key === ' ') { self.flip(1); }
+      if (e.key === 'ArrowLeft') { self.flip(-1); }
+    };
+    document.addEventListener('keydown', self._keyHandler);
+    self._onResize = function () { self.paginate(); };
+    window.addEventListener('resize', self._onResize);
+
+    var load = function (force) {
+      var p = force
+        ? App.api('apiDashboard').then(function (d) { App.cachePut('dashboard', d); return d; })
+        : App.cached('dashboard', function () { return App.api('apiDashboard'); });
+      return p.then(function (d) {
+        self.data = d;
+        self.loadedAt = new Date();
+        self.draw();
+      }).catch(function (e) {
+        var b = App.$('#board');
+        if (b && !self.data) b.innerHTML = '<div class="board-msg none">불러오지 못했습니다<small>' + h(e.message) + '</small></div>';
+      });
+    };
+    self._timers.push(setInterval(function () { load(true); }, self.REFRESH_MS));
+    self._timers.push(setInterval(function () { self.tickClock(); }, 15 * 1000));
+    return load(false);
+  },
+
+  /** 라우터가 다른 화면으로 넘어갈 때 호출 — 타이머·리스너·body 클래스 정리 */
+  leave: function () {
+    var self = this;
+    document.body.classList.remove('board-mode');
+    (self._timers || []).forEach(clearInterval);
+    self._timers = [];
+    if (self._flipTimer) { clearInterval(self._flipTimer); self._flipTimer = null; }
+    if (self._keyHandler) { document.removeEventListener('keydown', self._keyHandler); self._keyHandler = null; }
+    if (self._onResize) { window.removeEventListener('resize', self._onResize); self._onResize = null; }
+  },
+
+  tickClock: function () {
+    var c = App.$('#board-clock');
+    if (!c) return;
+    var d = new Date();
+    c.textContent = App.pad(d.getHours()) + ':' + App.pad(d.getMinutes());
+    var r = App.$('#board-refresh');
+    if (r && this.loadedAt) r.textContent = '갱신 ' + App.pad(this.loadedAt.getHours()) + ':' + App.pad(this.loadedAt.getMinutes()) + ' · 5분마다 자동';
+  },
+
+  /** 학생 수에 따른 글자 크기 배율 */
+  scale: function (n) {
+    if (n <= 4) return 1.4;
+    if (n <= 8) return 1.15;
+    if (n <= 14) return 1.0;
+    if (n <= 24) return 0.85;
+    if (n <= 40) return 0.72;
+    return 0.6;
+  },
+
+  draw: function () {
+    var self = this;
+    var h = App.h;
+    var d = self.data;
+    var board = App.$('#board');
+    if (!board || !d) return;
+
+    var types = d.mealTypes.filter(function (t) { return d.todayByType[t].menus.length > 0; });
+    var total = 0;
+    types.forEach(function (t) { total += d.todayByType[t].count; });
+    var s = self.scale(total);
+    board.style.setProperty('--nm', Math.max(48, Math.round(64 * s)) + 'px');
+    board.style.setProperty('--why', Math.max(18, Math.round(28 * s)) + 'px');
+    board.style.setProperty('--card-w', Math.max(260, Math.round(380 * s)) + 'px');
+
+    var head = '<div class="board-head"><div class="date">' + h(d.todayLabel) + '</div><div class="clock" id="board-clock"></div><div class="sum">' +
+      (types.length
+        ? types.map(function (t) { var r = d.todayByType[t]; return '<span class="pill ' + (r.count ? '' : 'ok') + '">' + h(t) + ' · 해당 ' + r.count + '명</span>'; }).join('')
+        : '<span class="pill none">급식 없음</span>') +
+      '</div></div>';
+
+    var body;
+    if (!types.length) {
+      body = '<div class="board-msg none">오늘 급식 없음<small>주말·방학이 아니라면 급식 관리에서 동기화하세요</small></div>';
+    } else if (!total) {
+      body = '<div class="board-msg">오늘 해당 학생 없음<small>' + h(types.join(' · ')) + ' 메뉴 전부 안전합니다</small></div>';
+    } else {
+      var items = [];
+      types.forEach(function (t) {
+        var r = d.todayByType[t];
+        if (!r.count) return;
+        if (types.length > 1) items.push('<div class="board-type">' + h(t) + ' <span>해당 ' + r.count + '명</span></div>');
+        var lastClass = null;
+        r.affected.forEach(function (a) {
+          var st = a.student;
+          var key = st.grade + '-' + st.classNo;
+          if (key !== lastClass) {
+            lastClass = key;
+            var teacher = st.teacher && st.teacher.name ? '담임 ' + st.teacher.name : '';
+            items.push('<div class="bc-head">' + st.grade + '학년 ' + st.classNo + '반' + (teacher ? '<span class="t">' + h(teacher) + '</span>' : '') + '</div>');
+          }
+          var why = a.items.map(function (it) { return '<b>' + h(it.menu) + '</b> ' + h((it.reasons || []).join(', ')); }).join('<span class="sep"> · </span>');
+          items.push('<div class="bc"><div class="nm">' + h(st.label) + '</div><div class="why">' + why + '</div></div>');
+        });
+      });
+      body = '<div class="board-view" id="board-view"><div class="board-flow" id="board-flow">' + items.join('') + '</div></div>';
+    }
+    board.innerHTML = head + body;
+    self.tickClock();
+    self.paginate();
+  },
+
+  /** 행 단위로 페이지 경계 계산 (flex-wrap 이라 같은 줄의 offsetTop 이 같다) */
+  paginate: function () {
+    var self = this;
+    var view = App.$('#board-view');
+    var flow = App.$('#board-flow');
+    var ind = App.$('#board-page');
+    if (self._flipTimer) { clearInterval(self._flipTimer); self._flipTimer = null; }
+    if (!view || !flow) { if (ind) ind.textContent = ''; return; }
+    var avail = view.clientHeight;
+    var pages = [0];
+    var start = 0;
+    var kids = Array.prototype.slice.call(flow.children);
+    var isHead = function (k) { return k && (k.classList.contains('bc-head') || k.classList.contains('board-type')); };
+    kids.forEach(function (k, i) {
+      var top = k.offsetTop, bottom = top + k.offsetHeight;
+      if (bottom - start > avail && top > start) {
+        // 바로 앞이 반/끼니 헤더면 헤더부터 다음 페이지로 (헤더만 남는 고아 방지)
+        var cut = top;
+        if (isHead(kids[i - 1]) && kids[i - 1].offsetTop > start) cut = kids[i - 1].offsetTop;
+        if (isHead(kids[i - 2]) && isHead(kids[i - 1]) && kids[i - 2].offsetTop > start) cut = kids[i - 2].offsetTop;
+        start = cut; pages.push(cut);
+      }
+    });
+    self.pages = pages;
+    self.flowHeight = flow.scrollHeight;
+    if (self.page >= pages.length) self.page = 0;
+    self.showPage();
+    if (pages.length > 1) self._flipTimer = setInterval(function () { self.flip(1); }, self.FLIP_MS);
+  },
+
+  showPage: function () {
+    var flow = App.$('#board-flow');
+    var ind = App.$('#board-page');
+    if (!flow) return;
+    var top = this.pages[this.page];
+    var next = this.pages[this.page + 1];
+    flow.style.transform = 'translateY(-' + top + 'px)';
+    // 다음 페이지 첫 줄이 화면 아래에 잘린 채 비치지 않도록 현재 페이지 구간만 보이게 자른다
+    flow.style.clipPath = next ? 'inset(' + top + 'px 0 ' + Math.max(0, (this.flowHeight || 0) - next) + 'px 0)' : 'inset(' + top + 'px 0 0 0)';
+    if (ind) ind.textContent = this.pages.length > 1 ? (this.page + 1) + ' / ' + this.pages.length : '';
+  },
+
+  flip: function (n) {
+    if (!this.pages || this.pages.length < 2) return;
+    this.page = (this.page + n + this.pages.length) % this.pages.length;
+    this.showPage();
+  },
+};
+</script>
