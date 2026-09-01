@@ -358,14 +358,17 @@
   .pd-title { font-size: 16pt; font-weight: 800; letter-spacing: -0.3px; }
   .pd-sub { font-size: 9.5pt; color: #444; margin-top: 3px; }
   /* 반 제목 = <caption>: 페이지 끝에 혼자 남지 않게(break-after: avoid), 첫 2행(tbody.pd-first)과 한 블록 */
-  .pd-class { display: table-caption; caption-side: top; text-align: left; padding: 12px 0 4px; border-top: 1px solid #999; margin-top: 8px;
+  .pd-class { display: table-caption; caption-side: top; text-align: left; padding: 14px 0 4px;
               break-after: avoid; page-break-after: avoid; break-inside: avoid; page-break-inside: avoid; }
-  .pd-sec:first-of-type .pd-class { border-top: 0; margin-top: 0; padding-top: 0; }
+  .pd-sec:first-of-type .pd-class { padding-top: 0; }
   .pd-class b { font-size: 12pt; margin-right: 10px; }
   .pd-class span { color: #444; font-size: 9.5pt; margin-right: 10px; }
   .pd-class .n { float: right; margin-right: 3mm; }
-  .pd-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 10pt; }
-  .pd-table th, .pd-table td { border: 1px solid #999; padding: 4px 6px; vertical-align: top; word-break: keep-all; white-space: normal; max-width: none; }
+  /* 선은 collapse 대신 separate + 셀의 아래·왼쪽 선만: collapse 모델은 페이지가 나뉘는 곳에서 마지막 행 아래 선이 빠지는 일이 있다 */
+  .pd-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 10pt; }
+  .pd-table th, .pd-table td { border: 0; border-bottom: 1px solid #999; border-left: 1px solid #999; padding: 4px 6px; vertical-align: top; word-break: keep-all; white-space: normal; max-width: none; }
+  .pd-table th:last-child, .pd-table td:last-child { border-right: 1px solid #999; }
+  .pd-table thead th { border-top: 1px solid #999; }
   .pd-table th { background: #eee; font-weight: 700; text-align: center; white-space: nowrap; }
   .pd-table td.c { text-align: center; white-space: nowrap; }
   .pd-table td.menu { overflow-wrap: anywhere; }
