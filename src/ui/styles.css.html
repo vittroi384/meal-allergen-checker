@@ -202,6 +202,10 @@
   .week-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
   .week-day { border: 1px solid var(--border); border-radius: 10px; padding: 10px 8px; text-align: center; cursor: pointer; background: var(--card); }
   .week-day.today { border-color: var(--primary); background: #eff6ff; }
+  .week-day.today .dl::after { content: ' · 오늘'; color: var(--primary); }
+  .week-day.selected { box-shadow: 0 0 0 2px var(--primary); border-color: var(--primary); background: #dbeafe; }
+  .week-day:hover { border-color: var(--primary); }
+  #day-panels.loading { opacity: .6; transition: opacity .15s; }
   .week-day .dl { font-size: 12px; color: var(--muted); font-weight: 700; }
   .week-day .n { font-size: 22px; font-weight: 800; color: var(--danger); }
   .week-day .n.zero { color: #9ca3af; }

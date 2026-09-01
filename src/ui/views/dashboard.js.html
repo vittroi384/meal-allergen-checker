@@ -4,6 +4,7 @@ App.views.dashboard = {
   skeleton: 'dashboard',
   render: function (el) {
     var h = App.h;
+    var self = this;
     return App.cached('dashboard', function () { return App.api('apiDashboard'); }).then(function (d) {
       // 달력 탭을 바로 열 수 있도록 이번 달 집계를 미리 받아 둔다
       var ym = d.today.slice(0, 7);
@@ -29,24 +30,33 @@ App.views.dashboard = {
         '<div class="card stat"><span class="label">판별 대상 학생</span><span class="value">' + d.activeStudentCount + '<span style="font-size:14px;color:var(--muted);font-weight:600"> / ' + d.studentCount + '</span></span><span class="hint">' + (d.lastSync ? '마지막 동기화 ' + h(d.lastSync.at || '') + (d.lastSync.ok ? '' : ' (실패)') : '동기화 기록 없음') + '</span></div>' +
         '</div>';
 
-      html += '<div class="card"><div class="card-head"><h3>이번 주</h3><a class="btn sm" href="#/calendar/' + d.today.slice(0, 7) + '">달력 보기</a></div><div class="week-strip">' +
+      var sel = (self._selected && d.week.some(function (w) { return w.date === self._selected; })) ? self._selected : d.today;
+      html += '<div class="card"><div class="card-head"><h3>이번 주 <span class="small muted" style="font-weight:500">날짜를 누르면 아래 패널이 그 날짜로 바뀝니다</span></h3><a class="btn sm" href="#/calendar/' + d.today.slice(0, 7) + '">달력 보기</a></div><div class="week-strip">' +
         d.week.map(function (w) {
           var dw = App.dow(w.date);
-          var cls = 'week-day' + (w.isToday ? ' today' : '') + (!w.hasMeals || dw === 0 || dw === 6 ? ' dim' : '');
+          var cls = 'week-day' + (w.isToday ? ' today' : '') + (w.date === sel ? ' selected' : '') + (!w.hasMeals || dw === 0 || dw === 6 ? ' dim' : '');
           var n = !w.hasMeals ? '<div class="n none">—</div>' : '<div class="n ' + (w.affectedCount ? '' : 'zero') + '">' + w.affectedCount + '</div>';
           return '<div class="' + cls + '" data-day="' + w.date + '"><div class="dl">' + h(w.label) + '</div>' + n + '<div class="wb">' +
             (w.uncheckedCount ? '<span class="badge warn tiny">확인 ' + w.uncheckedCount + '</span>' : '') + (w.manualProtected ? '<span class="badge purple tiny">수동</span>' : '') + '</div></div>';
         }).join('') + '</div></div>';
 
-      d.mealTypes.forEach(function (t) {
-        var r = d.todayByType[t];
-        html += '<div class="card"><div class="card-head"><h3>오늘 ' + h(t) + ' <span class="badge ' + (r.count ? 'danger' : 'ok') + '">' + (r.menus.length ? '해당 ' + r.count + '명' : '데이터 없음') + '</span>' + (r.protected ? '<span class="badge purple">수동 보호</span>' : '') + '</h3>' +
-          '<a class="btn sm" href="#/day/' + d.today + '">메뉴 편집</a></div>';
-        if (!r.menus.length) { html += '<div class="empty">오늘 ' + h(t) + ' 데이터가 없습니다. 주말·방학이 아니라면 <a href="#/meals">급식 관리</a>에서 동기화하세요.</div></div>'; return; }
-        html += '<div class="grid cols-2"><div class="list-box"><div class="list-head"><span>메뉴</span><span class="badge gray">' + r.menus.length + '개</span></div><div class="list-scroll"><div class="menu-list">' +
-          r.menus.map(function (m) { return '<div class="menu-item' + (m.needsCheck ? ' needs' : '') + '"><span class="name">' + h(m.name) + '</span><span class="tags">' + App.codeTags(m.codes) + '</span>' + App.menuBadges(m) + '</div>'; }).join('') +
-          '</div></div></div>' + App.affectedListHtml(r.affected, '해당 학생 없음 🎉', { ctx: 'dash:' + t }) + '</div></div>';
-      });
+      // 아래 메뉴/해당 학생 패널: 이번 주 스트립에서 고른 날짜 것으로 내용만 교체 (기본 오늘)
+      var panelsHtml = function (date, byType) {
+        var isToday = date === d.today;
+        var lbl = isToday ? '오늘' : App.fmtDate(date);
+        var out = '';
+        d.mealTypes.forEach(function (t) {
+          var r = byType[t];
+          out += '<div class="card"><div class="card-head"><h3>' + h(lbl) + ' ' + h(t) + ' <span class="badge ' + (r.count ? 'danger' : 'ok') + '">' + (r.menus.length ? '해당 ' + r.count + '명' : '데이터 없음') + '</span>' + (r.protected ? '<span class="badge purple">수동 보호</span>' : '') + '</h3>' +
+            '<div class="actions">' + (isToday ? '' : '<a class="btn sm ghost" href="#/dashboard" data-today title="오늘 패널로">↩ 오늘로 돌아가기</a>') + '<a class="btn sm" href="#/day/' + date + '">메뉴 편집</a></div></div>';
+          if (!r.menus.length) { out += '<div class="empty">' + h(lbl) + ' ' + h(t) + ' 데이터가 없습니다. 주말·방학이 아니라면 <a href="#/meals">급식 관리</a>에서 동기화하세요.</div></div>'; return; }
+          out += '<div class="grid cols-2"><div class="list-box"><div class="list-head"><span>메뉴</span><span class="badge gray">' + r.menus.length + '개</span></div><div class="list-scroll"><div class="menu-list">' +
+            r.menus.map(function (m) { return '<div class="menu-item' + (m.needsCheck ? ' needs' : '') + '" title="' + h((m.codeNames || []).join(', ')) + '"><span class="name">' + h(m.name) + '</span><span class="tags">' + App.codeTags(m.codes, null, 3) + '</span>' + App.menuBadges(m) + '</div>'; }).join('') +
+            '</div></div></div>' + App.affectedListHtml(r.affected, '해당 학생 없음 🎉', { ctx: 'dash:' + date + ':' + t }) + '</div></div>';
+        });
+        return out;
+      };
+      html += '<div id="day-panels">' + panelsHtml(d.today, d.todayByType) + '</div>';
 
       if (d.failures.length) {
         html += '<div class="card"><div class="card-head"><h3>최근 알림 실패 <span class="badge gray">7일 이내</span></h3><div class="actions"><a class="btn sm" href="#/logs?failed=1">전체 보기</a><button class="btn sm" data-dismiss-fail title="지금까지의 실패를 대시보드에서 숨깁니다. 로그는 남고, 새로 실패하면 다시 표시됩니다.">확인함 · 숨기기</button></div></div><div class="table-wrap"><table><thead><tr><th>시각</th><th>종류</th><th>채널</th><th>오류</th></tr></thead><tbody>' +
@@ -68,8 +78,28 @@ App.views.dashboard = {
           });
           return;
         }
-        var c = e.target.closest('[data-day]'); if (c) App.go('day/' + c.dataset.day);
+        var back = e.target.closest('[data-today]');
+        if (back) { e.preventDefault(); selectDate(d.today); return; }
+        var c = e.target.closest('[data-day]'); if (c) selectDate(c.dataset.day);
       });
+
+      /** 스트립 날짜 선택: 강조 + 패널 내용만 교체 (오늘은 대시보드 응답, 다른 날은 apiDay — 클라이언트 캐시) */
+      var selectDate = function (date) {
+        self._selected = date;
+        App.$$('.week-day', el).forEach(function (w) { w.classList.toggle('selected', w.dataset.day === date); });
+        var panels = App.$('#day-panels', el);
+        if (!panels) return;
+        if (date === d.today) { panels.innerHTML = panelsHtml(d.today, d.todayByType); panels.classList.remove('loading'); return; }
+        panels.classList.add('loading');
+        App.cached('day:' + date, function () { return App.api('apiDay', date); }).then(function (day) {
+          if (self._selected !== date) return; // 그 사이 다른 날짜를 골랐으면 무시
+          panels.innerHTML = panelsHtml(date, day.byType);
+          panels.classList.remove('loading');
+        }).catch(function (err) { panels.classList.remove('loading'); App.toast('불러오지 못했습니다: ' + err.message, 'danger'); });
+      };
+      // 다시 그릴 때(새로고침·학생 저장 후) 이전에 고른 날짜가 이번 주 안이면 유지
+      if (self._selected && self._selected !== d.today && d.week.some(function (w) { return w.date === self._selected; })) selectDate(self._selected);
+      else self._selected = d.today;
     });
   },
 };
