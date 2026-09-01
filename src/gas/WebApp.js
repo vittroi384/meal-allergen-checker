@@ -137,7 +137,8 @@ function _buildDashboardCore(today) {
   var settings = readSettings();
   var mealTypes = managedMealTypes_(settings);
   var allStudents = readStudents_();
-  var students = filterActiveStudents(allStudents, currentSchoolYear_(settings));
+  // 달력/날짜 상세(apiMonth/apiDay)와 같은 학생 집합을 써야 담임 표시·기타 키워드 동의어가 대시보드에서도 일치한다
+  var students = readActiveStudents_(settings);
   var meals = readMeals_();
 
   var todayByType = {};
