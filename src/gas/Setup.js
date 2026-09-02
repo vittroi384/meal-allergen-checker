@@ -154,7 +154,7 @@ function _applyStudentValidations(sheet) {
   var r;
   // 열 이동/삽입으로 어긋난 채 남은 옛 규칙 제거 (예: 학년의 1~6 규칙이 반 열에 남는 경우)
   sheet.getRange(2, 1, Math.max(1, sheet.getMaxRows() - 1), sheet.getMaxColumns()).clearDataValidations();
-  if ((r = _bodyRange(sheet, '학년'))) r.setDataValidation(dv().requireNumberBetween(1, 6).setAllowInvalid(false).setHelpText('1~6 숫자').build());
+  if ((r = _bodyRange(sheet, '학년'))) r.setDataValidation(dv().requireNumberGreaterThanOrEqualTo(1).setAllowInvalid(false).setHelpText('1 이상 숫자').build());
   if ((r = _bodyRange(sheet, '반'))) r.setDataValidation(dv().requireNumberGreaterThanOrEqualTo(1).setAllowInvalid(false).build());
   if ((r = _bodyRange(sheet, '담임전화번호'))) r.setNumberFormat('@');
   if ((r = _bodyRange(sheet, '학년도'))) r.setDataValidation(dv().requireNumberBetween(2000, 2100).setAllowInvalid(true).setHelpText('예: 2026 (비우면 현재 학년도)').build());

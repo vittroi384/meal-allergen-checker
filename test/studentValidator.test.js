@@ -37,8 +37,15 @@ test('validateStudentRow: valid row, fills school year, normalizes phones', () =
 });
 
 test('validateStudentRow: collects all errors', () => {
-  const r = core.validateStudentRow(raw({ grade: '7', classNo: 'x', name: '', codes: '1,25', parentEmail: 'bad', parentNotify: '카톡', teacherPhone: '12' }), 2026);
+  const r = core.validateStudentRow(raw({ grade: '0', classNo: 'x', name: '', codes: '1,25', parentEmail: 'bad', parentNotify: '카톡', teacherPhone: '12' }), 2026);
   ['학년', '반', '이름', '범위 밖: 25', '이메일 형식', '학부모알림', '담임전화번호'].forEach((k) => assert.ok(r.errors.some((e) => e.includes(k)), k));
+});
+
+test('validateStudentRow: grade and class have no upper bound', () => {
+  const r = core.validateStudentRow(raw({ grade: '7', classNo: '13' }), 2026);
+  assert.deepEqual(r.errors, []);
+  assert.equal(r.student.grade, 7);
+  assert.equal(r.student.classNo, 13);
 });
 
 test('validateStudentRow: notify channel requires contact', () => {
@@ -53,7 +60,7 @@ test('calcStudentMergePlan: add / update / unchanged keyed by grade+class+name',
       raw({ _row: 2 }),                                          // 변경없음
       raw({ _row: 3, name: '김영희', codes: '2,6' }),             // 수정
       raw({ _row: 4, name: '신입생' }),                           // 추가
-      raw({ _row: 5, grade: '9', name: '오류' }),                 // 오류
+      raw({ _row: 5, grade: '0', name: '오류' }),                 // 오류
     ],
     ex, 2026,
   );

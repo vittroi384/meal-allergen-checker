@@ -160,7 +160,7 @@ App.studentEditor = function (s, schoolYear, onSaved) {
   var body = '<div class="form-grid">' +
     '<div class="field"><label>학년도</label><input type="number" id="se-year" value="' + h(s.schoolYear || schoolYear) + '" min="2000" max="2100"></div>' +
     '<div class="field"><label>이름 *</label><input type="text" id="se-name" value="' + h(s.name || '') + '"></div>' +
-    '<div class="field"><label>학년 *</label><input type="number" id="se-grade" value="' + h(s.grade || '') + '" min="1" max="6"></div>' +
+    '<div class="field"><label>학년 *</label><input type="number" id="se-grade" value="' + h(s.grade || '') + '" min="1"></div>' +
     '<div class="field"><label>반 *</label><input type="number" id="se-class" value="' + h(s.classNo || '') + '" min="1"></div>' +
     '<div class="field"><label>담임 이름</label><input type="text" id="se-tname" value="' + h(s.teacherName || '') + '"><span class="help">같은 반은 같은 담임 정보여야 합니다</span></div>' +
     '<div class="field"><label>담임 전화번호</label><input type="tel" id="se-tphone" value="' + h(s.teacherPhone || '') + '" placeholder="010-0000-0000 / 02-000-0000"></div>' +

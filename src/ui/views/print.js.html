@@ -36,7 +36,7 @@ App.views.print = {
       '<div class="card no-print"><div class="toolbar" style="row-gap:10px">' +
       '<label class="small">기간</label>' + seg('p-range', [['today', '오늘'], ['week', '이번 주'], ['month', '이번 달'], ['custom', '직접 지정']], preset) +
       '<input type="date" id="p-start" value="' + start + '"> <span class="muted">~</span> <input type="date" id="p-end" value="' + end + '">' +
-      '<label class="small" style="margin-left:8px">학년</label><input type="number" id="p-grade" value="' + h(grade) + '" min="1" max="6" style="width:72px" placeholder="전체">' +
+      '<label class="small" style="margin-left:8px">학년</label><input type="number" id="p-grade" value="' + h(grade) + '" min="1" style="width:72px" placeholder="전체">' +
       '<label class="small">반</label><input type="number" id="p-class" value="' + h(classNo) + '" min="1" style="width:72px" placeholder="전체">' +
       '</div><div class="toolbar" style="margin-top:10px;row-gap:10px">' +
       '<label class="small">모드</label>' + seg('p-mode', [['cont', '전체 연속 (영양사용)'], ['sep', '반별 분리 (담임 배부용, 반마다 새 페이지)']], mode) +

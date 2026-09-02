@@ -55,7 +55,7 @@ function _isPosInt(v) {
 function validateStudentRow(raw, schoolYear) {
   var errors = [];
   var grade = raw.grade, classNo = raw.classNo;
-  if (!_isPosInt(grade) || Number(grade) > 6) errors.push('학년은 1~6 숫자');
+  if (!_isPosInt(grade)) errors.push('학년은 1 이상 숫자');
   if (!_isPosInt(classNo)) errors.push('반은 1 이상 숫자');
   var name = String(raw.name || '').trim();
   if (!name) errors.push('이름 없음');
