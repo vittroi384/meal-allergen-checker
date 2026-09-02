@@ -12,6 +12,9 @@ npm-debug.log*
 *.local.*
 data/
 
+# 내부 문서 (가이드·발표자료 등) — 로컬에만 보관, 저장소에는 README 만
+docs/
+
 # OS / editor
 .DS_Store
 Thumbs.db
