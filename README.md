@@ -1,4 +1,11 @@
-# 급식 알레르기 판별 시스템
+# 🍽️ 급식 알레르기 판별 시스템
+
+![Google Apps Script](https://img.shields.io/badge/Google%20Apps%20Script-V8-4285F4?logo=google&logoColor=white)
+![Google Sheets](https://img.shields.io/badge/Google%20Sheets-DB-34A853?logo=googlesheets&logoColor=white)
+![NEIS Open API](https://img.shields.io/badge/NEIS-Open%20API-orange)
+![Tests](https://img.shields.io/badge/tests-76%20passing-brightgreen)
+![Cost](https://img.shields.io/badge/%EC%9A%B4%EC%98%81%EB%B9%84-0%EC%9B%90-blue)
+![Serverless](https://img.shields.io/badge/%EC%84%9C%EB%B2%84-%EC%97%86%EC%9D%8C-lightgrey)
 
 학생의 알레르기 정보와 NEIS 급식 식단을 **매일 자동으로 대조**해서 "오늘/이번 주/이번 달 급식을 못 먹는 학생"을 바로 보여주고, 담당자·학부모에게 알림까지 보내는 시스템입니다.
 
@@ -6,7 +13,19 @@
 - **서버 없음, 설치 없음** — 학교 담당자는 웹앱 링크 하나만 열면 됩니다
 - **데이터는 내 구글 계정 안에** — 학생 정보가 외부 서버로 나가지 않습니다
 
-> 📚 **더 읽기** — 비개발자용 설명 [`docs/이해하기.md`](docs/이해하기.md) · 발표자료 [`docs/발표자료.pptx`](docs/발표자료.pptx) · 개발자 온보딩 코드 투어 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+## 스크린샷
+
+> 아래 그림은 모두 **가상 데이터**입니다 (실제 학생 정보 없음).
+
+| | |
+|---|---|
+| **대시보드** — 오늘 해당 학생·확인 필요·주간 요약 ![대시보드](assets/dashboard.png) | **전광판** — 급식실 모니터용, 반별 큰 글씨·자동 페이지 ![전광판](assets/board.png) |
+| **달력** — 날짜별 해당 인원 한눈에 ![달력](assets/calendar.png) | **날짜 상세** — 메뉴 편집 시 해당 학생 즉시 재계산 ![날짜 상세](assets/day.png) |
+| **학생 관리** — 검색·정렬·엑셀 일괄 업로드 ![학생 관리](assets/students.png) | **학생 수정** — 19종 체크 + 기타 키워드(동의어 매칭) ![학생 수정](assets/student-editor.png) |
+| **급식 관리** — NEIS 동기화·확인 필요·수동 보호 ![급식 관리](assets/meals.png) | **인쇄** — A4 미리보기 = 인쇄 결과, 반별 분리 모드 ![인쇄](assets/print.png) |
+| **설정** — 알림 시각·채널 테스트·발송 미리보기 ![설정](assets/settings.png) | **알림 로그** — 발송 이력, 수신자는 가려서 기록 ![알림 로그](assets/logs.png) |
+
+## 화면 구성
 
 | 화면 | 내용 |
 |---|---|
