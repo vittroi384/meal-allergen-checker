@@ -13,6 +13,7 @@ App.views.board = {
   FADE_MS: 1000,
   REFRESH_MS: 5 * 60 * 1000,
   SCALES: [1.7, 1.55, 1.4, 1.25, 1.12, 1.0, 0.9, 0.82, 0.74, 0.66, 0.6, 0.55, 0.5, 0.45],
+  MAX_ROWS: 8,
 
   render: function (el, route) {
     var self = this;
@@ -203,28 +204,43 @@ App.views.board = {
     else self.status();
   },
 
-  /** 화면 높이에 들어가는 가장 큰 배율 선택 → 최소 배율에서도 넘치면 행 단위 페이지 */
+  /**
+   * 화면 높이에 들어가는 가장 큰 배율 선택.
+   * 반이 MAX_ROWS 개를 넘으면 한 화면에 다 넣으려 줄이지 않고, MAX_ROWS 개씩 페이지로 나눈 뒤
+   * 각 페이지가 들어가는 가장 큰 배율을 고른다. 최소 배율에서도 넘치면 행 단위 페이지.
+   */
   fit: function () {
     var self = this;
     var board = App.$('#board'), view = App.$('#board-view'), flow = self.cur;
     if (!board || !view || !flow || self.lastMode !== 'list') return;
     var availH = view.clientHeight;
+    var manyRows = flow.children.length > self.MAX_ROWS;
     var best = null;
     for (var i = 0; i < self.SCALES.length; i++) {
       self.applyScale(board, self.SCALES[i]);
-      if (flow.scrollHeight <= availH) { best = self.SCALES[i]; break; }
+      if (manyRows ? self.chunksFit(flow, availH) : flow.scrollHeight <= availH) { best = self.SCALES[i]; break; }
     }
     if (self._flipTimer) { clearInterval(self._flipTimer); self._flipTimer = null; }
-    if (best !== null) {
+    if (best !== null && !manyRows) {
       self.pages = [0]; self.page = 0;
       flow.style.transform = ''; flow.style.clipPath = '';
       self.alt.innerHTML = '';
       self.status();
     } else {
-      self.applyScale(board, self.SCALES[self.SCALES.length - 1]);
+      if (best === null) self.applyScale(board, self.SCALES[self.SCALES.length - 1]);
       self.paginate();
     }
     self.fitted = true;
+  },
+
+  /** MAX_ROWS 개씩 끊은 각 묶음이 화면 높이에 들어가는지 */
+  chunksFit: function (flow, availH) {
+    var kids = flow.children;
+    for (var i = 0; i < kids.length; i += this.MAX_ROWS) {
+      var last = kids[Math.min(i + this.MAX_ROWS, kids.length) - 1];
+      if (last.offsetTop + last.offsetHeight - kids[i].offsetTop > availH) return false;
+    }
+    return true;
   },
 
   /** 배율 → 글자·카드 크기. 카드 폭은 가장 긴 이름 기준으로 전부 동일 */
@@ -238,17 +254,18 @@ App.views.board = {
     board.style.setProperty('--rp', Math.max(6, Math.round(nm * 0.22)) + 'px');
   },
 
-  /** 행 단위 페이지 경계 */
+  /** 행 단위 페이지 경계 — 높이 초과 또는 한 페이지 MAX_ROWS 개에서 끊는다 */
   paginate: function () {
     var self = this;
     var view = App.$('#board-view'), flow = self.cur;
     if (self._flipTimer) { clearInterval(self._flipTimer); self._flipTimer = null; }
     if (!view || !flow) return;
     var avail = view.clientHeight;
-    var pages = [0], start = 0;
+    var pages = [0], start = 0, count = 0;
     Array.prototype.forEach.call(flow.children, function (k) {
       var top = k.offsetTop, bottom = top + k.offsetHeight;
-      if (bottom - start > avail && top > start) { start = top; pages.push(top); }
+      if ((bottom - start > avail || count >= self.MAX_ROWS) && top > start) { start = top; pages.push(top); count = 0; }
+      count++;
     });
     self.pages = pages;
     self.flowHeight = flow.scrollHeight;
