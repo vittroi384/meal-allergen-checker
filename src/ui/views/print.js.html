@@ -10,8 +10,10 @@ App.views.print = {
     var p = r.params || {};
     var valid = function (s) { return /^\d{4}-\d{2}-\d{2}$/.test(s || ''); };
     var t = App.today();
+    // "이번 주" 프리셋 = 이번 주 월~금 (일요일에는 지난 월요일 기준)
     var dw = App.dow(t);
     var mon = App.addDays(t, dw === 0 ? -6 : 1 - dw);
+    // 그 달의 마지막 날 (UTC 로 계산해 시간대 영향 제거)
     var monthEnd = function (d) { var pp = d.slice(0, 7).split('-').map(Number); return d.slice(0, 7) + '-' + App.pad(new Date(Date.UTC(pp[0], pp[1], 0)).getUTCDate()); };
     var presets = { today: [t, t], week: [mon, App.addDays(mon, 4)], month: [t.slice(0, 7) + '-01', monthEnd(t)] };
     var start = valid(p.start) ? p.start : presets.week[0];
@@ -26,6 +28,7 @@ App.views.print = {
     if (!ps) { ps = document.createElement('style'); ps.id = 'print-page-style'; document.head.appendChild(ps); }
     ps.textContent = '@page { size: A4 ' + (orient === 'l' ? 'landscape' : 'portrait') + '; margin: 16mm 12mm 18mm; @bottom-center { content: counter(page) " / " counter(pages); font-size: 9pt; color: #6b7280; } }';
 
+    // 세그먼트 버튼 그룹 HTML (현재 선택 값에 on 클래스)
     var seg = function (id, items, cur) {
       return '<span class="seg" id="' + id + '">' + items.map(function (it) { return '<button type="button" class="' + (it[0] === cur ? 'on' : '') + '" data-v="' + it[0] + '">' + it[1] + '</button>'; }).join('') + '</span>';
     };
@@ -45,12 +48,14 @@ App.views.print = {
       '<div class="notice info small" style="margin-top:12px">인쇄 대화상자에서 <b>"머리글 및 바닥글" 끄기</b>, <b>"배경 그래픽" 켜기</b>, 용지 <b>A4</b>, 방향은 위에서 고른 것과 같게 두세요. 제목·기간·출력일은 문서 안에, 페이지 번호는 각 장 하단에 자동으로 들어갑니다.</div></div>' +
       '<div id="p-body"><div class="loading"><span class="spinner"></span></div></div>';
 
+    // 현재 입력값을 URL 쿼리로 반영 → 라우터가 이 뷰를 새 조건으로 다시 렌더
     var nav = function () {
       App.go('print?start=' + App.$('#p-start').value + '&end=' + App.$('#p-end').value + '&grade=' + App.$('#p-grade').value + '&classNo=' + App.$('#p-class').value + '&mode=' + mode + '&orient=' + orient);
     };
     App.$('#p-go').onclick = nav;
     App.$('#p-print').onclick = function () { window.print(); };
     App.$('#p-dl').onclick = function (e) { App.downloadXlsx('class', { start: start, end: end, grade: grade, classNo: classNo }, e.currentTarget); };
+    // 세그먼트 클릭 위임: 기간 프리셋은 날짜 입력을 채우고 조회, 모드·방향은 즉시 URL 갱신
     App.on(el, 'click', function (e) {
       var b = e.target.closest('.seg button');
       if (!b || !el.contains(b)) return;
@@ -63,13 +68,16 @@ App.views.print = {
 
     var school = (App.state.boot && App.state.boot.settings['학교명']) || '';
     var periodText = App.fmtDate(start) + ' ~ ' + App.fmtDate(end) + ' (' + start.slice(0, 4) + '년)';
+    // 문서 머리(제목·기간·출력일) — 브라우저 머리글 대신 문서 안에 넣어 어느 브라우저에서나 같게 인쇄된다
     var docHead = function (sub) {
       return '<div class="pd-head"><div class="pd-title">' + h(school ? school + ' ' : '') + '급식 알레르기 주의 학생 명단</div>' +
         '<div class="pd-sub">기간 ' + h(periodText) + (sub ? ' · ' + sub : '') + ' · 출력 ' + h(App.today()) + '</div></div>';
     };
+    // 반 제목(caption) 내용: 학년-반 · 담임 · 건수
     var classHead = function (c) {
       return '<b>' + c.grade + '학년 ' + c.classNo + '반</b><span>' + h(c.teacherLabel || '') + '</span><span class="n">' + c.rows.length + '건</span>';
     };
+    // 표 한 행: 날짜·끼니·이름·못 먹는 메뉴(원인)·확인란(수기 체크용 빈 칸)
     var rowHtml = function (x) { return '<tr><td class="c">' + h(x.label) + '</td><td class="c">' + h(x.mealType) + '</td><td class="c">' + h(x.name) + '</td><td class="menu">' + h(x.text) + '</td><td></td></tr>'; };
     /**
      * 반 표. 반 제목은 <caption>(break-after: avoid), 첫 2행은 별도 <tbody class="pd-first">(break-inside: avoid)
@@ -85,6 +93,7 @@ App.views.print = {
         '</table>';
     };
 
+    // 데이터 조회(apiPrintData) 후 A4 미리보기(.print-doc) 생성 — 이 DOM 이 그대로 인쇄된다
     return App.api('apiPrintData', { start: start, end: end, grade: grade, classNo: classNo }).then(function (d) {
       var body = App.$('#p-body');
       if (!d.classes.length) { body.innerHTML = '<div class="print-doc ' + orient + '">' + docHead('') + '<div class="empty">이 기간에 해당 학생이 없습니다</div></div>'; return; }

@@ -1,4 +1,9 @@
 <!DOCTYPE html>
+<!--
+  SPA 껍데기. HtmlService 템플릿으로 서빙되며, 스타일·앱 코어·화면별 뷰 파일을
+  서버측 include() 스크립틀릿으로 이어붙여 한 페이지로 만든다.
+  실제 화면 그리기는 전부 JS(App)가 담당하고, 이 파일은 마운트 지점(#app 등)만 제공한다.
+-->
 <html lang="ko">
 <head>
   <meta charset="utf-8">
@@ -7,9 +12,12 @@
   <?!= include('ui/styles.css') ?>
 </head>
 <body>
+  <!-- 앱 마운트 지점. 학교명은 서버 템플릿 값으로 미리 심어 부트 전 레이아웃에서도 쓴다 -->
   <div id="app" data-school="<?= schoolName ?>"></div>
+  <!-- 토스트·모달은 #app 밖 전용 루트에 얹는다 (화면 리렌더에 휩쓸리지 않도록) -->
   <div id="toast-root"></div>
   <div id="modal-root"></div>
+  <!-- 로드 순서 중요: App 코어가 먼저, 그 다음 각 뷰가 App.views.X 로 자신을 등록 -->
   <?!= include('ui/app.js') ?>
   <?!= include('ui/views/dashboard.js') ?>
   <?!= include('ui/views/calendar.js') ?>
@@ -19,6 +27,7 @@
   <?!= include('ui/views/logs.js') ?>
   <?!= include('ui/views/print.js') ?>
   <?!= include('ui/views/board.js') ?>
+  <!-- 모든 뷰 등록이 끝난 뒤 시작: 인증 모드 확인 → 초기 라우트 결정 → 첫 화면 렌더 -->
   <script>App.start();</script>
 </body>
 </html>

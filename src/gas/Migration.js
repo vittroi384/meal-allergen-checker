@@ -1,6 +1,9 @@
 /**
  * 다른 구글 계정으로 이관: 설정 내보내기/가져오기 (비밀값 제외).
  */
+// 시트 메뉴 [급식 알레르기] 에서 다이얼로그(ui/dialogs/migration_*.html)를 띄우고,
+// 다이얼로그의 google.script.run 이 dialog* 함수를 호출한다. 학생/급식 데이터는
+// 스프레드시트 파일 복사로 옮기므로 여기서는 설정·상태값만 다룬다.
 
 var MIGRATION_VERSION = 1;
 
@@ -47,9 +50,11 @@ function applyMigrationImport_(data) {
     if (SETTING_KEYS.indexOf(k) >= 0 && k !== '웹앱URL') settings[k] = data.settings[k];
   });
   writeSettings(settings);
+  // 상태값도 복원하되 DEPLOYMENT_ID 는 새 계정의 배포 ID 를 유지해야 하므로 제외
   Object.keys(data.state || {}).forEach(function (k) {
     if (STATE_KEYS.indexOf(k) >= 0 && k !== 'DEPLOYMENT_ID') setState(k, data.state[k]);
   });
+  // 가져온 알림 시간 설정에 맞춰 트리거를 새로 등록
   setupTriggers_(readSettings());
   var missing = (data.secretsConfigured || []).filter(function (k) { return SECRET_KEYS.indexOf(k) >= 0 && !hasSecret(k); });
   return { imported: Object.keys(settings).length, secretsToEnter: missing };
@@ -57,6 +62,7 @@ function applyMigrationImport_(data) {
 
 // ---------- 시트 메뉴용 다이얼로그 ----------
 
+/** 시트 메뉴: 이관 JSON 을 만들어 복사용 다이얼로그로 표시. */
 function menuExportMigration() {
   var json = JSON.stringify(buildMigrationExport_(), null, 2);
   var t = HtmlService.createTemplateFromFile('ui/dialogs/migration_export');
@@ -64,6 +70,7 @@ function menuExportMigration() {
   SpreadsheetApp.getUi().showModalDialog(t.evaluate().setWidth(640).setHeight(520), '이관용 설정 내보내기 (비밀값 제외)');
 }
 
+/** 시트 메뉴: 이관 JSON 붙여넣기 다이얼로그 표시. */
 function menuImportMigration() {
   var html = HtmlService.createHtmlOutputFromFile('ui/dialogs/migration_import').setWidth(640).setHeight(520);
   SpreadsheetApp.getUi().showModalDialog(html, '이관용 설정 가져오기');

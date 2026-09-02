@@ -1,6 +1,12 @@
 <script>
+/**
+ * 알림 로그 (#/logs): 문자·텔레그램 등 발송 기록 표. 실패 행은 빨간 배경.
+ * 필터(실패만·표시 건수)는 URL 파라미터(?failed=1&limit=N)로 유지 — 대시보드의 "로그 보기" 링크와 새로고침에도 상태가 남는다.
+ * 캐시 없이 매번 서버에서 받는다 (로그는 항상 최신이어야 의미가 있음).
+ */
 App.views.logs = {
   title: '알림 로그',
+  // el 에 표를 그린다. r.params 로 필터를 읽으므로 필터 변경 = 해시 이동 = 재렌더
   render: function (el, r) {
     var h = App.h;
     var self = this;
@@ -20,6 +26,7 @@ App.views.logs = {
             '<td class="small" title="' + h(full) + '">' + (l.error ? '<span class="error-text">' + h(l.error) + '</span> · ' : '') + h(l.summary) + '</td><td class="center">' + (l.ok ? '<span class="badge ok fixed">성공</span>' : '<span class="badge danger fixed">실패</span>') + '</td></tr>';
         }).join('') : '<tr><td colspan="7" class="empty">기록이 없습니다</td></tr>') +
         '</tbody></table></div></div>';
+      // 필터 변경 시 해시만 바꾼다 → 라우터가 새 파라미터로 이 화면을 다시 그림
       var nav = function () { App.go('logs?failed=' + (App.$('#failed').checked ? 1 : 0) + '&limit=' + App.$('#limit').value); };
       App.$('#failed').onchange = nav;
       App.$('#limit').onchange = nav;

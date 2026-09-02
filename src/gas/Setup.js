@@ -4,6 +4,7 @@
 
 var MENU_TITLE = '급식 알레르기';
 
+/** 시트를 열 때 자동 실행(단순 트리거): 커스텀 메뉴 구성. 현재 인증 모드에 ●/○ 를 표시 */
 function onOpen() {
   var ui = SpreadsheetApp.getUi();
   var mode = 'off';
@@ -77,6 +78,7 @@ function setup() {
   return msg;
 }
 
+/** 알림창 표시. UI 가 없는 컨텍스트(트리거·스크립트 에디터)에서는 콘솔 로그로 대체 */
 function _alert(title, msg) {
   try {
     SpreadsheetApp.getUi().alert(title, msg, SpreadsheetApp.getUi().ButtonSet.OK);
@@ -85,6 +87,7 @@ function _alert(title, msg) {
   }
 }
 
+/** 예/아니오 확인창. UI 없는 컨텍스트에서는 항상 "예"로 간주 */
 function _confirm(title, msg) {
   try {
     var ui = SpreadsheetApp.getUi();
@@ -96,6 +99,7 @@ function _confirm(title, msg) {
 
 // ---------- 시트 구조 ----------
 
+/** 모든 시트의 존재·헤더·유효성·서식·탭 순서를 보장. setup() 에서 호출, 여러 번 실행해도 안전 */
 function ensureAllSheets_() {
   var ss = getSpreadsheet_();
 
@@ -139,16 +143,19 @@ function ensureAllSheets_() {
   ss.setActiveSheet(ss.getSheetByName(SHEETS.STUDENTS));
 }
 
+/** 헤더명 → 1-based 열 번호 (없으면 undefined) */
 function _col(sheet, header) {
   return headerIndex_(sheet)[header];
 }
 
+/** 해당 헤더 열의 본문 범위(2행~마지막 행). 열이 없으면 null */
 function _bodyRange(sheet, header) {
   var col = _col(sheet, header);
   if (!col) return null;
   return sheet.getRange(2, col, Math.max(1, sheet.getMaxRows() - 1), 1);
 }
 
+/** 학생/템플릿 시트에 입력 유효성 규칙 적용: 학년·반 숫자, 알레르기코드 형식, 알림방식 목록, 사용여부 체크박스 */
 function _applyStudentValidations(sheet) {
   var dv = SpreadsheetApp.newDataValidation;
   var r;
@@ -198,6 +205,7 @@ function _migrateStudentColumns(sheet) {
   _ensureColumnAfter(sheet, '담임전화번호', '담임이름');
 }
 
+/** 급식 시트에 입력 유효성 규칙 적용: 날짜 yyyy-MM-dd 형식, 식사구분·출처 목록, 수동수정 체크박스 */
 function _applyMealValidations(sheet) {
   var dv = SpreadsheetApp.newDataValidation;
   var r;
@@ -213,6 +221,7 @@ function _applyMealValidations(sheet) {
   if ((r = _bodyRange(sheet, '수동수정여부'))) r.setDataValidation(dv().requireCheckbox().build());
 }
 
+/** 설정 시트에 SETTING_DEFS 의 기본 키가 없으면 추가하고, 값 셀 서식(체크박스/텍스트)을 맞춘다 */
 function _seedSettings(sheet) {
   var values = sheet.getDataRange().getValues();
   var have = {};
@@ -242,6 +251,7 @@ function _seedSettings(sheet) {
   }
 }
 
+/** 업로드 템플릿 시트의 헤더 셀에 작성 안내 메모를 달고 탭 색으로 구분 */
 function _applyTemplateNotes(sheet) {
   var idx = headerIndex_(sheet);
   var notes = {
@@ -279,6 +289,7 @@ function setupTriggers_(settings) {
   return n;
 }
 
+/** 이 프로젝트의 핸들러(TRIGGER_HANDLERS)에 연결된 트리거만 골라 삭제. 삭제 개수 반환 */
 function removeOurTriggers_() {
   var removed = 0;
   ScriptApp.getProjectTriggers().forEach(function (t) {
@@ -290,6 +301,7 @@ function removeOurTriggers_() {
   return removed;
 }
 
+/** 현재 등록된 우리 트리거의 핸들러 이름 목록 (웹앱 설정 화면 표시용) */
 function listOurTriggers_() {
   return ScriptApp.getProjectTriggers()
     .filter(function (t) { return TRIGGER_HANDLERS.indexOf(t.getHandlerFunction()) >= 0; })
@@ -298,6 +310,7 @@ function listOurTriggers_() {
 
 // ---------- 메뉴 항목 ----------
 
+/** 시트 메뉴: 공유용 웹앱 URL 을 링크 대화상자로 보여준다 */
 function menuOpenWebApp() {
   // 실제 웹 요청(doGet)에서 확인된 배포 ID 로 만든 표준 주소를 우선 사용. 메뉴 컨텍스트의 getUrl() 은 HEAD 배포를 가리킬 수 있어 폴백으로만.
   var url = '';
@@ -318,12 +331,14 @@ function menuOpenWebApp() {
   SpreadsheetApp.getUi().showModalDialog(html, '웹앱 열기');
 }
 
+// 시트 메뉴(접속 비밀번호 하위): 인증 모드 3종 전환
 function menuAuthOff() { _setAuthModeFromMenu('off'); }
 function menuAuthSettings() { _setAuthModeFromMenu('settings'); }
 function menuAuthOn() { _setAuthModeFromMenu('on'); }
 
 var _AUTH_MODE_LABEL = { off: '사용 안 함 (링크만 있으면 누구나 접속)', settings: '설정 탭만 잠금', on: '전체 잠금 (로그인 필요)' };
 
+/** 인증 모드를 저장하고 안내문 표시. 잠금 모드인데 비밀번호가 없으면 새로 만들어 1회만 보여준다 */
 function _setAuthModeFromMenu(mode) {
   var msg = '접속 비밀번호 모드: ' + _AUTH_MODE_LABEL[mode] + '\n\n';
   if (mode === 'off') {
@@ -343,6 +358,7 @@ function _setAuthModeFromMenu(mode) {
   _alert('접속 비밀번호 설정', msg);
 }
 
+/** 시트 메뉴: 접속 비밀번호를 새로 만들고 기존 로그인 세션을 모두 종료 */
 function menuResetPassword() {
   if (!_confirm('접속 비밀번호 재설정', '새 비밀번호를 만들고 기존 로그인 세션을 모두 종료합니다. 계속할까요?')) return;
   var pw = generatePassword_(10);
@@ -350,6 +366,7 @@ function menuResetPassword() {
   _alert('새 접속 비밀번호', '★ 새 비밀번호 (이 창에서만 1회 표시):\n\n    ' + pw + '\n\n웹앱 설정 화면에서 원하는 비밀번호로 바꿀 수 있습니다.');
 }
 
+/** 시트 메뉴: 자동 동기화/알림 트리거를 모두 해제. 다른 계정으로 이관한 뒤 구 계정에서 쓰는 용도 */
 function menuRemoveAllTriggers() {
   if (!_confirm('트리거 모두 해제', '이 계정에 등록된 자동 동기화/알림 트리거를 모두 해제합니다.\n' +
     '다른 계정으로 이관한 뒤 구 계정에서 실행하는 용도입니다. 계속할까요?')) return;
@@ -398,6 +415,7 @@ function menuSelectSchool() {
   _alert('학교 저장 완료', s.name + ' (' + s.atptCode + ' / ' + s.schoolCode + ')\n\n다음: 메뉴 → "지금 급식 동기화"');
 }
 
+/** 시트 메뉴: 이번 달 + 다음 달 급식을 즉시 동기화하고 결과를 알림창으로 표시 */
 function menuSyncNow() {
   if (typeof runSyncMonths_ !== 'function') { _alert('준비 중', '동기화 기능은 아직 배포되지 않았습니다.'); return; }
   var ym = yearMonthOf(todayStr_());
@@ -409,6 +427,7 @@ function menuSyncNow() {
   }
 }
 
+/** 시트 메뉴: 오늘 담당자 알림을 강제(테스트 모드)로 발송해 채널 설정을 점검 */
 function menuTestDailyNotice() {
   if (typeof runStaffDaily_ !== 'function') { _alert('준비 중', '알림 기능은 아직 배포되지 않았습니다.'); return; }
   try {

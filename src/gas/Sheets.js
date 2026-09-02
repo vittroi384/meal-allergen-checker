@@ -2,12 +2,14 @@
  * Google Sheets 리포지토리. 읽기 → core 정규화, 쓰기는 배열로 모아 한 번에.
  */
 
+/** 이 스크립트에 바인딩된 스프레드시트. 없으면 예외 */
 function getSpreadsheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) throw new Error('바인딩된 스프레드시트를 찾을 수 없습니다');
   return ss;
 }
 
+/** 이름으로 시트를 얻는다. 없으면 "초기 설정" 안내와 함께 예외 */
 function getSheet_(name) {
   var sheet = getSpreadsheet_().getSheetByName(name);
   if (!sheet) throw new Error('시트가 없습니다: ' + name + ' — 시트 메뉴 [급식 알레르기] → 초기 설정을 실행하세요');
@@ -162,18 +164,22 @@ function readMealsInRange_(start, end, mealTypes) {
   });
 }
 
+/** 급식 행 추가 (동기화·수동 입력에서 사용). 추가된 행 수 반환 */
 function appendMeals_(rows) {
   return appendObjects_(SHEETS.MEALS, HEADERS.MEALS, FIELD_MAP.MEALS, rows);
 }
 
+/** 급식 시트에서 지정 행들을 삭제. 삭제된 행 수 반환 */
 function deleteMealRows_(rowNumbers) {
   return deleteRows_(SHEETS.MEALS, rowNumbers);
 }
 
+/** 학생 추가. core 학생 객체를 시트 표현(studentToSheetObject)으로 바꿔 기록 */
 function appendStudents_(students) {
   return appendObjects_(SHEETS.STUDENTS, HEADERS.STUDENTS, FIELD_MAP.STUDENTS, students.map(studentToSheetObject));
 }
 
+/** 학생 시트 특정 행의 값을 갱신 (병합 계획의 "수정" 처리용) */
 function updateStudentRow_(rowNumber, student) {
   updateObjectRow_(SHEETS.STUDENTS, rowNumber, HEADERS.STUDENTS, FIELD_MAP.STUDENTS, studentToSheetObject(student));
 }

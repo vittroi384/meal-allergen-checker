@@ -3,17 +3,20 @@
  * 비밀값은 여기서만 읽고 쓴다. 로그·UI 로는 "설정됨/미설정" 만 내보낸다.
  */
 
+/** Script Properties 핸들 (비밀값·상태값이 저장되는 곳) */
 function props_() {
   return PropertiesService.getScriptProperties();
 }
 
 // ---------- 비밀값 ----------
 
+/** 비밀값 읽기. SECRET_KEYS 에 정의된 키만 허용, 미설정이면 '' 반환 */
 function getSecret(key) {
   if (SECRET_KEYS.indexOf(key) < 0) throw new Error('알 수 없는 비밀값 키: ' + key);
   return props_().getProperty(key) || '';
 }
 
+/** 비밀값 저장. 빈 값을 주면 키를 아예 삭제해 "미설정" 상태로 만든다 */
 function setSecret(key, value) {
   if (SECRET_KEYS.indexOf(key) < 0) throw new Error('알 수 없는 비밀값 키: ' + key);
   var v = value === undefined || value === null ? '' : String(value).trim();
@@ -21,6 +24,7 @@ function setSecret(key, value) {
   else props_().deleteProperty(key);
 }
 
+/** 해당 비밀값이 설정되어 있는지 여부 (값 자체는 노출하지 않음) */
 function hasSecret(key) {
   return getSecret(key) !== '';
 }
@@ -34,10 +38,12 @@ function getSecretStatus() {
 
 // ---------- 상태값 (비밀 아님) ----------
 
+/** 상태값 읽기 (마지막 동기화 시각, 배포 ID 등 비밀 아닌 내부 상태). 없으면 '' */
 function getState(key) {
   return props_().getProperty(key) || '';
 }
 
+/** 상태값 저장. 빈 값이면 키 삭제 */
 function setState(key, value) {
   var v = value === undefined || value === null ? '' : String(value);
   if (v) props_().setProperty(key, v);
@@ -144,10 +150,12 @@ function writeSettings(partial) {
   bumpDataVersion_();
 }
 
+/** 설정값을 불리언으로 해석 (비어 있으면 false) */
 function settingBool_(settings, key) {
   return toBool(settings[key], false);
 }
 
+/** 쉼표로 구분된 설정값을 문자열 배열로 */
 function settingList_(settings, key) {
   return splitList(settings[key]);
 }

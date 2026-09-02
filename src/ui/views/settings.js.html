@@ -15,6 +15,7 @@ App.views.settings = {
     }
     return self.renderBody(el);
   },
+  // 실제 설정 화면: refreshBoot 로 최신 설정·비밀값 상태·채널 상태를 다시 받아 그린다
   renderBody: function (el) {
     var h = App.h;
     var self = this;
@@ -24,11 +25,13 @@ App.views.settings = {
       var sec = b.secretStatus;
       var chan = {};
       b.channels.forEach(function (c) { chan[c.id] = c; });
+      // 비밀값 입력 필드: 저장된 값은 절대 다시 표시하지 않고 설정됨/미설정 배지만. 새 값을 입력한 경우에만 저장 시 전송
       function secretField(key, label, help) {
         return '<div class="field full"><label>' + h(label) + ' ' + (sec[key] ? '<span class="badge ok">설정됨</span>' : '<span class="badge gray">미설정</span>') + '</label>' +
           '<div class="secret-row"><input type="password" data-secret="' + key + '" placeholder="' + (sec[key] ? '변경하려면 새 값 입력' : '값 입력') + '" autocomplete="new-password">' +
           (sec[key] ? '<button class="btn sm danger" data-clear="' + key + '">삭제</button>' : '') + '</div>' + (help ? '<span class="help">' + help + '</span>' : '') + '</div>';
       }
+      // 채널 활성/비활성 배지 (비활성이면 사유 표시)
       function chanBadge(id) { var c = chan[id]; return c.enabled ? '<span class="badge ok">활성</span>' : '<span class="badge gray" title="' + h(c.reason) + '">비활성' + (c.reason ? ' · ' + h(c.reason) : '') + '</span>'; }
       /** 토글 행: 라벨(+설명) 왼쪽, 상태 배지·스위치 오른쪽 */
       function toggleRow(key, label, help, rightExtra) {
@@ -106,6 +109,7 @@ App.views.settings = {
 
       // ---- 이벤트 ----
       var reload = function () { App.invalidate(); return self.renderBody(el); };
+      // 설정 저장: data-set 입력을 모아 일반 설정으로, data-secret 은 값이 입력된 것만 apiSaveSecrets 로 먼저(유효성 검사 포함) → apiSaveSettings
       App.$('#save').onclick = function () {
         var btn = this;
         var partial = {};
@@ -122,6 +126,7 @@ App.views.settings = {
         }).then(function () { App.toast('설정을 저장했습니다', 'ok'); reload(); })
           .catch(function (e) { App.toast(e.message, 'danger'); App.busy(btn, false); });
       };
+      // 버튼 위임: 비밀값 삭제(apiClearSecret) / 채널 테스트 발송(apiTestChannel) / 담당자 요약 발송(apiSendTestNotice)
       App.on(el, 'click', function (e) {
         var b = e.target.closest('button');
         if (!b || !el.contains(b)) return;
@@ -141,6 +146,7 @@ App.views.settings = {
         }
       });
       App.$('#school-search').onclick = function () { App.schoolSearch(reload); };
+      // 내일(금요일엔 다음 급식일) 학부모 알림을 발송 없이 계산해 표로 보여줌 (apiPreviewParentNotices)
       App.$('#parent-preview').onclick = function () {
         var btn = this; App.busy(btn, true);
         App.api('apiPreviewParentNotices').then(function (r) {
@@ -151,6 +157,7 @@ App.views.settings = {
               r.items.map(function (it) { return '<tr class="' + (it.error ? 'row-error' : '') + '"><td>' + h(it.student) + '</td><td>' + h(it.mealType) + '</td><td>' + h(it.channel) + (it.fallback ? ' <span class="badge warn">대체</span>' : '') + '</td><td class="wrap small">' + h(it.to) + (it.error ? '<br><span class="error-text">' + h(it.error) + '</span>' : '') + '</td><td class="wrap small">' + h(it.text) + (it.channel === '문자' ? ' <span class="muted">(' + it.bytes + 'B' + (it.bytes > 90 ? ', LMS' : '') + ')</span>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="empty">해당 학생 없음</div>');
         }).catch(function (e) { App.toast(e.message, 'danger'); }).then(function () { App.busy(btn, false); });
       };
+      // 봇이 받은 최근 대화에서 chat id 후보를 찾아(apiTelegramChats) 버튼 클릭으로 입력칸에 추가
       App.$('#tg-find').onclick = function () {
         var btn = this; App.busy(btn, true);
         App.api('apiTelegramChats').then(function (r) {
@@ -161,6 +168,7 @@ App.views.settings = {
           App.$$('[data-chat]', box).forEach(function (bb) { bb.onclick = function () { var inp = App.$('[data-set="담당자텔레그램chatid"]', el); var cur = inp.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean); if (cur.indexOf(bb.dataset.chat) < 0) cur.push(bb.dataset.chat); inp.value = cur.join(','); App.toast('추가됨 — 설정 저장을 누르세요'); }; });
         }).catch(function (e) { App.toast(e.message, 'danger'); }).then(function () { App.busy(btn, false); });
       };
+      // 비밀번호 변경(apiChangePassword): 성공하면 새 세션 토큰으로 교체 — 다른 기기의 로그인은 모두 무효화된다
       App.$('#pw-change').onclick = function () {
         var btn = this;
         var cur = App.$('#pw-cur').value, nw = App.$('#pw-new').value;
@@ -173,6 +181,7 @@ App.views.settings = {
           App.toast('비밀번호를 변경했습니다', 'ok'); App.$('#pw-cur').value = ''; App.$('#pw-new').value = ''; App.busy(btn, false);
         }).catch(function (e) { App.toast(e.message, 'danger'); App.busy(btn, false); });
       };
+      // 트리거 전체 재등록 (apiReinstallTriggers)
       App.$('#triggers-reinstall').onclick = function () {
         var btn = this; App.busy(btn, true);
         App.api('apiReinstallTriggers').then(function (r) { App.toast('트리거 ' + r.count + '개 등록', 'ok'); reload(); }).catch(function (e) { App.toast(e.message, 'danger'); App.busy(btn, false); });
@@ -181,6 +190,7 @@ App.views.settings = {
   },
 };
 
+/** 학교 검색 모달: apiSearchSchools 로 NEIS 학교를 찾고, 선택하면 apiSetSchool 로 저장 후 onDone 호출 */
 App.schoolSearch = function (onDone) {
   var h = App.h;
   var modal = App.modal({

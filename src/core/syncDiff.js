@@ -3,10 +3,12 @@
  * 끼니(날짜+식사구분) 단위로 보호/대체/유지를 결정한다.
  */
 
+/** 끼니 식별키: '2026-09-01|중식' */
 function mealKey(date, mealType) {
   return date + '|' + mealType;
 }
 
+// 끼니의 메뉴 구성을 비교용 문자열로: '이름#코드' 를 정렬해 이어붙임 → 행 순서가 달라도 같은 구성이면 동일
 function _menuSignature(rows) {
   return rows
     .map(function (r) { return r.name + '#' + formatAllergyCodes(r.codes); })

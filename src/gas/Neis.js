@@ -1,7 +1,10 @@
 /**
  * NEIS Open API 호출 (UrlFetchApp). 파싱은 core/neisParser.js.
  */
+// URL 조립(buildMealUrl 등)과 응답 파싱(parseMealResponse 등)은 순수 로직으로
+// core/neisParser.js 에 있고, 이 파일은 실제 HTTP 호출과 설정·키 조회만 담당한다.
 
+/** 저장된 NEIS 인증키 반환. 미설정이면 안내 문구와 함께 예외. */
 function neisKey_() {
   var key = getSecret('NEIS_API_KEY');
   if (!key) throw new Error('NEIS 인증키가 설정되지 않았습니다. 웹앱 설정 화면에서 입력하세요 (open.neis.go.kr 에서 발급).');
@@ -10,6 +13,7 @@ function neisKey_() {
 
 /** URL 호출 → JSON. HTTP 오류·비 JSON 응답은 예외. */
 function neisFetchJson_(url) {
+  // muteHttpExceptions: HTTP 오류 시 예외 대신 응답을 받아 상태코드를 직접 검사 (프로젝트 규칙)
   var res = UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: true });
   var code = res.getResponseCode();
   var body = res.getContentText('UTF-8');
@@ -21,6 +25,7 @@ function neisFetchJson_(url) {
   }
 }
 
+/** 설정 시트에서 학교 식별자(시도교육청코드·학교코드)를 읽는다. 미설정이면 예외. */
 function schoolParams_(settings) {
   var s = settings || readSettings();
   var atpt = String(s['시도교육청코드'] || '').trim();
@@ -41,6 +46,7 @@ function fetchMealsForRange_(start, end, mealTypes, settings) {
   for (var i = 0; i < mealTypes.length; i++) {
     var mealCode = NEIS_MEAL_CODE[mealTypes[i]];
     if (!mealCode) continue;
+    // 한 페이지 1000건씩, total 만큼 받을 때까지 페이지를 넘긴다
     var pIndex = 1;
     var fetchedCount = 0;
     while (true) {

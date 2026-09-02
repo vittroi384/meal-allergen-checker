@@ -1,4 +1,7 @@
 <style>
+  /* 앱 전체 스타일 시트 (모든 화면 공용, index.html 에 include).
+     구성: 변수 → 기본 요소 → 레이아웃 → 컴포넌트(카드·버튼·표·폼·달력·메뉴 목록·모달) → 인쇄 → 전광판 */
+  /* 색·크기 변수: *-soft 는 같은 계열의 연한 배경색 (배지·알림 배경용) */
   :root {
     --bg: #f5f7fb; --card: #ffffff; --border: #e5e7eb; --text: #111827; --muted: #6b7280;
     --primary: #2563eb; --primary-dark: #1d4ed8; --primary-soft: #dbeafe;
@@ -6,6 +9,7 @@
     --ok: #059669; --ok-soft: #d1fae5; --purple: #7c3aed; --purple-soft: #ede9fe;
     --radius: 12px; --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .08);
   }
+  /* 기본 요소 리셋·타이포그래피 */
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', Roboto, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
@@ -18,6 +22,7 @@
   code { font-family: Consolas, 'D2Coding', monospace; font-size: 12px; background: #f3f4f6; padding: 1px 5px; border-radius: 4px; }
 
   /* 레이아웃 */
+  /* 상단 고정 바 + 가운데 정렬 본문(max 1400px) + 반응형 그리드 */
   .topbar { position: sticky; top: 0; z-index: 20; background: var(--card); border-bottom: 1px solid var(--border); }
   .topbar-inner { max-width: 1400px; margin: 0 auto; padding: 0 16px; display: flex; align-items: center; gap: 16px; height: 56px; }
   .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 16px; white-space: nowrap; }
@@ -41,6 +46,7 @@
   @media (max-width: 640px) { .grid.cols-2, .grid.cols-3, .grid.cols-4 { grid-template-columns: 1fr; } .topbar-inner { gap: 8px; } .brand .school { display: none; } .main { padding: 14px 12px 60px; } }
 
   /* 카드 */
+  /* 기본 콘텐츠 상자. .stat 은 대시보드 상단 숫자 카드, .notice 는 카드 안 알림 띠 */
   .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; }
   .card + .card { margin-top: 16px; }
   .card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
@@ -78,6 +84,7 @@
   .btn.icon { padding: 6px 8px; }
 
   /* 배지/태그 */
+  /* .badge 는 상태 표시(확인 필요·수동 등), .tag 는 알레르기 칩 (.hit = 학생과 겹치는 코드 강조) */
   .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 1.5; white-space: nowrap; }
   .badge.danger { background: var(--danger-soft); color: var(--danger); }
   .badge.warn { background: var(--warn-soft); color: var(--warn); }
@@ -148,6 +155,7 @@
   tr.row-update td { background: #eff6ff; }
 
   /* 폼 */
+  /* 2열 그리드(.form-grid) + 라벨/입력 세로 묶음(.field). 640px 이하 1열 */
   .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
   @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
   .field { display: flex; flex-direction: column; gap: 5px; }
@@ -162,6 +170,7 @@
   .inline > * { flex: 0 0 auto; }
   .check { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; cursor: pointer; user-select: none; }
   .check input { width: 16px; height: 16px; accent-color: var(--primary); }
+  /* 토글 스위치 (체크박스를 시각적으로 덮어 그림) */
   .switch { position: relative; width: 40px; height: 22px; flex: 0 0 auto; }
   .switch input { opacity: 0; width: 0; height: 0; }
   .switch span { position: absolute; inset: 0; background: #d1d5db; border-radius: 999px; transition: .15s; }
@@ -174,12 +183,14 @@
   .ok-text { color: var(--ok); font-size: 12.5px; }
   .secret-row { display: flex; gap: 8px; align-items: center; }
   .secret-row input { flex: 1; }
+  /* 탭 줄 (설정 화면 등): button 형·a 형 둘 다 지원 */
   .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
   .tabs button { background: none; border: 0; padding: 8px 14px; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; cursor: pointer; font-size: 13.5px; }
   .tabs button.active { color: var(--primary-dark); border-bottom-color: var(--primary); }
   .tabs a { display: inline-block; padding: 8px 14px; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; font-size: 13.5px; margin-bottom: -1px; }
   .tabs a.active { color: var(--primary-dark); border-bottom-color: var(--primary); }
   td input[type=text], td input[type=tel], td input[type=email], td input[type=number] { padding: 6px 8px; font-size: 13px; min-width: 90px; }
+  /* 파일 업로드 드롭존 (학생 명단 가져오기 등). 내부 input 은 숨기고 클릭·드래그로만 받음 */
   .dropzone { border: 2px dashed #cbd5e1; border-radius: 12px; padding: 24px; text-align: center; color: var(--muted); background: #f8fafc; cursor: pointer; }
   .dropzone.over { border-color: var(--primary); background: var(--primary-soft); }
   .dropzone input { display: none; }
@@ -202,6 +213,7 @@
   .cal-cell .badges { height: 20px; display: flex; gap: 3px; align-items: center; overflow: hidden; }
   .badge.tiny { font-size: 10px; padding: 0 6px; line-height: 16px; }
   @media (max-width: 640px) { .cal-cell { height: 72px; padding: 5px; grid-template-rows: 16px 1fr 16px; } .cal-cell .cnt { font-size: 18px; } .cal-grid { gap: 3px; } .badge.tiny { font-size: 9px; padding: 0 4px; line-height: 14px; } }
+  /* 이번 주 스트립 (대시보드): 7일 한 줄, 클릭하면 아래 패널이 그 날짜로 바뀜 */
   .week-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
   .week-day { border: 1px solid var(--border); border-radius: 10px; padding: 10px 8px; text-align: center; cursor: pointer; background: var(--card); }
   .week-day.today { border-color: var(--primary); background: #eff6ff; }
@@ -218,12 +230,14 @@
   @media (max-width: 640px) { .week-strip { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; } .week-day { padding: 6px 2px; } .week-day .n { font-size: 16px; } }
 
   /* 메뉴 목록 */
+  /* 날짜 상세·대시보드 패널 공용. .needs = 확인 필요 메뉴 노란 강조 */
   .menu-list { display: flex; flex-direction: column; gap: 6px; }
   .menu-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
   .menu-item .name { font-weight: 600; flex: 1; min-width: 0; }
   .menu-item .tags { display: flex; flex-wrap: wrap; gap: 2px; }
   .menu-item .ops { display: flex; gap: 4px; }
   .menu-item.needs { border-color: #fde68a; background: #fffbeb; }
+  /* 해당 학생 목록: 급식을 못 먹는 학생 카드(빨간 계열) */
   .affected-list { display: flex; flex-direction: column; gap: 8px; }
   .affected-item { padding: 10px 12px; border-radius: 10px; background: #fff5f5; border: 1px solid #fecaca; }
   .affected-item .who { font-weight: 700; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
@@ -263,6 +277,7 @@
   .menu-item.row .del-inline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13.5px; }
   .menu-item.row .del-inline b { color: var(--danger); }
   .menu-item.row .del-inline .sp { flex: 1; }
+  /* 확인 팝오버 (App.popover): 앵커 근처에 띄우는 작은 질문+버튼 상자 */
   .popover { position: absolute; z-index: 60; width: 300px; max-width: calc(100vw - 16px); background: #fff; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 30px rgba(15,23,42,.16); padding: 12px 14px; }
   .popover .pop-text { font-size: 13.5px; line-height: 1.5; color: var(--text); margin-bottom: 10px; word-break: keep-all; }
   .popover .pop-text b { font-weight: 700; }
@@ -277,6 +292,7 @@
   .review-progress .bar i { display: block; height: 100%; background: var(--primary); transition: width .2s; }
   .menu-item .more-btn { width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 16px; font-weight: 800; line-height: 1; letter-spacing: 1px; cursor: pointer; padding: 0; }
   .menu-item .more-btn:hover { background: #e5e7eb; color: var(--text); }
+  /* 드롭다운 메뉴 (App.dropdown — 행의 "···" 더보기): body 에 직접 붙어 절대 좌표로 뜬다 */
   .dropdown { position: absolute; z-index: 60; min-width: 150px; background: #fff; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 30px rgba(15,23,42,.14); padding: 4px; }
   .dropdown button { display: block; width: 100%; text-align: left; padding: 8px 12px; border: 0; border-radius: 6px; background: none; font: inherit; font-size: 13.5px; color: var(--text); cursor: pointer; white-space: nowrap; }
   .dropdown button:hover { background: #f3f4f6; }
@@ -348,10 +364,12 @@
 
   /* 인쇄 */
   /* ---------- 인쇄 문서 (화면 미리보기 = A4 인쇄) ---------- */
+  /* 세그먼트 버튼 (인쇄 화면의 모드·방향 선택): 한 덩어리 안에서 하나만 .on */
   .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #fff; }
   .seg button { border: 0; background: none; padding: 7px 12px; font-size: 13px; cursor: pointer; color: var(--text); border-right: 1px solid var(--border); white-space: nowrap; }
   .seg button:last-child { border-right: 0; }
   .seg button.on { background: var(--primary); color: #fff; font-weight: 600; }
+  /* .print-doc: 화면에서도 A4 실크기(mm)로 그려 미리보기 = 인쇄 결과가 되게 한다. .l = 가로 방향 */
   .print-doc { width: 210mm; min-height: 297mm; margin: 0 auto 18px; padding: 14mm 12mm 16mm; box-sizing: border-box; background: #fff; border: 1px solid var(--border); box-shadow: 0 2px 14px rgba(15,23,42,.08); color: #111; font-size: 10.5pt; line-height: 1.4; }
   .print-doc.l { width: 297mm; min-height: 210mm; }
   .pd-head { border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 10px; }
@@ -424,6 +442,7 @@
     .board-view { margin: 0 14px; } .board-msg .big { font-size: 44px; } .board-msg .date { font-size: 18px; }
   }
 
+  /* 실제 인쇄 시: 앱 UI 는 숨기고 문서만 남긴다 */
   @media print {
     .topbar, .no-print, #toast-root, #modal-root, .dropdown, .popover { display: none !important; }
     body { background: #fff; font-size: 12px; }

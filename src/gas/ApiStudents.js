@@ -2,6 +2,7 @@
  * 학생 관리 API: 목록, 추가/수정, 활성/비활성, 일괄 업로드(xlsx/붙여넣기) 미리보기·반영.
  */
 
+/** 학생 목록 조회(웹앱). 정렬된 전체 학생 + 담임 정보 + 담임 불일치 목록을 반환. */
 function apiStudents(token) {
   requireSession(token);
   var settings = readSettings();
@@ -31,6 +32,7 @@ function apiSaveStudent(token, raw) {
   var key = studentKey(st);
   var existing = readStudents_();
   var warnings = [];
+  // 동명이인 경고 — 저장은 막지 않고 안내만 한다
   var sameName = existing.filter(function (s) { return studentKey(s) === key && s._row !== raw._row; });
   if (sameName.length) warnings.push('같은 반에 동명이인(' + st.name + ')이 ' + (sameName.length + 1) + '명 있습니다. 비고 등으로 구분하세요');
   // 담임 불일치 (저장 후 상태 기준)
@@ -72,6 +74,7 @@ function apiAddKeyword(token, word, synonyms) {
   return { ok: true, keywordList: list };
 }
 
+/** 학생 사용여부(활성/비활성) 토글(웹앱). 행 삭제 대신 비활성으로 관리한다. */
 function apiSetStudentActive(token, row, active) {
   requireSession(token);
   var s = readStudents_().filter(function (x) { return x._row === row; })[0];
@@ -96,6 +99,7 @@ function studentRowsFromInput_(input) {
   return sanitizeRows_(tableToObjects(values, FIELD_MAP.STUDENTS));
 }
 
+/** 시트/엑셀에서 읽은 값을 JSON 직렬화 가능한 형태로 정리 (Date → 'yyyy-MM-dd' 문자열 등). */
 function sanitizeRows_(rows) {
   return rows.map(function (r) {
     var o = {};
@@ -109,6 +113,7 @@ function sanitizeRows_(rows) {
   });
 }
 
+/** 병합 계획을 웹앱 클라이언트로 보낼 수 있는 순수 데이터 형태로 변환. */
 function serializeMergePlan_(plan) {
   return {
     ok: plan.ok,
@@ -131,6 +136,7 @@ function apiPreviewStudentUpload(token, input) {
 /** 미리보기에서 받은 rawRows 를 그대로 되돌려 받아 서버에서 다시 계산 후 반영 */
 function apiApplyStudentUpload(token, rawRows) {
   requireSession(token);
+  // 동시에 두 명이 업로드해도 시트가 꼬이지 않도록 스크립트 락 (최대 20초 대기)
   var lock = LockService.getScriptLock();
   lock.waitLock(20 * 1000);
   try {

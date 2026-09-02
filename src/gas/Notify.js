@@ -3,12 +3,15 @@
  * 문구는 core/messages.js, 채널은 channels/*.js. 중복 발송은 알림로그의 중복키로 방지.
  */
 
+// 학부모 발송 1회 실행 시간 상한 — Apps Script 6분 제한 전에 스스로 멈추고 다음 실행에서 이어간다
 var _PARENT_TIME_BUDGET_MS = 5 * 60 * 1000;
 
+/** 사용 가능한 알림 채널 객체 목록 (channels/*.js 에 정의). */
 function allChannels_() {
   return [emailChannel_, smsChannel_, telegramChannel_];
 }
 
+/** 채널 id('email'|'sms'|'telegram') → 채널 객체, 없으면 null. */
 function channelById_(id) {
   return allChannels_().filter(function (c) { return c.id === id; })[0] || null;
 }
@@ -26,6 +29,7 @@ function channelStatus_(settings) {
  */
 function sendToStaff_(settings, kind, targetDate, msg, dedupeSuffix) {
   var out = { sent: 0, failed: 0, skipped: 0 };
+  // 최근 14일 알림로그의 성공 중복키 — 같은 내용을 두 번 보내지 않기 위한 기준
   var done = readSuccessfulDedupeKeys_(addDays(todayStr_(), -14));
   var emails = settingList_(settings, '담당자이메일');
   var chats = settingList_(settings, '담당자텔레그램chatid');
@@ -50,6 +54,7 @@ function sendToStaff_(settings, kind, targetDate, msg, dedupeSuffix) {
       r.ok ? out.sent++ : out.failed++;
     });
   }
+  // 보낼 곳이 하나도 없으면 실패로 기록해 관리자가 알아차리게 한다
   if (!emails.length && !chats.length) {
     appendLog_({ kind: kind, targetDate: targetDate, summary: '담당자 연락처가 설정되지 않아 발송 못 함: ' + msg.subject, ok: false, error: '담당자이메일/텔레그램 chat id 없음' });
     out.failed++;
@@ -80,9 +85,11 @@ function runStaffDaily_(opts) {
   var date = o.date || todayStr_();
   var byType = checkDate_(date, settings);
   var msg = formatStaffDaily({ date: date, schoolName: settings['학교명'], byType: byType, webAppUrl: webAppUrl_(settings) });
+  // 급식이 없는 날(주말·공휴일)은 설정이 켜져 있지 않으면 발송 생략
   if (!msg.hasMeals && !o.force && !settingBool_(settings, '주말공휴일알림')) {
     return { sent: 0, summary: date + ' 급식 데이터가 없어 발송하지 않음' };
   }
+  // 테스트 발송은 중복키에 현재 시각을 섞어 매번 실제로 발송되게 한다
   var kind = o.test ? NOTICE_KINDS.TEST : NOTICE_KINDS.STAFF_DAILY;
   var r = sendToStaff_(settings, kind, date, msg, o.test ? String(Date.now()) : '');
   return { sent: r.sent, failed: r.failed, skipped: r.skipped, affectedCount: msg.affectedCount,
@@ -129,6 +136,7 @@ function planParentNotices_(settings, today) {
       var msg = formatParentMessage({ schoolName: settings['학교명'], date: target, mealType: t, student: st, items: a.items, todayStr: today });
       var item = { student: st, mealType: t, channel: st.parentNotify === PARENT_NOTIFY.SMS ? 'sms' : 'email', to: '', subject: msg.subject, text: msg.text, fallback: false, error: '' };
       item.to = item.channel === 'sms' ? st.parentPhone : st.parentEmail;
+      // 문자를 원했지만 문자 채널이 꺼져 있으면 이메일로 대체 (이메일도 없으면 오류로 기록)
       if (item.channel === 'sms' && !smsOn) {
         if (st.parentEmail) { item.channel = 'email'; item.to = st.parentEmail; item.fallback = true; }
         else item.error = '문자 채널 비활성이고 이메일도 없음';
@@ -158,6 +166,7 @@ function runParentNotices_(opts) {
   var done = readSuccessfulDedupeKeys_(addDays(today, -7));
   var out = { target: plan.target, sent: 0, failed: 0, skipped: 0, fallback: 0, truncated: false };
   for (var i = 0; i < plan.items.length; i++) {
+    // 실행 시간 상한 초과 시 중단 — 이미 보낸 것은 중복키로 걸러지므로 다음 실행에서 나머지만 발송된다
     if (Date.now() - started > _PARENT_TIME_BUDGET_MS) { out.truncated = true; break; }
     var it = plan.items[i];
     var chName = it.channel === 'sms' ? CHANNELS.SMS : CHANNELS.EMAIL;

@@ -5,10 +5,12 @@
  *   result_code 가 "1" 이면 성공, 음수면 오류.
  */
 
+// 제공자 이름(설정 '문자제공자' 값) → { requiredSecrets: 필요한 비밀값 키, send: 발송 구현 }
 var _smsProviders = {
   '알리고': {
     requiredSecrets: ['SMS_API_KEY', 'SMS_USER_ID'],
     send: function (settings, to, text) {
+      // 단문(SMS)은 90바이트(한글 약 45자)까지 — 넘으면 장문(LMS)으로 전환하고 제목을 붙인다
       var isLms = calcSmsBytes(text) > 90;
       var payload = {
         key: getSecret('SMS_API_KEY'),
@@ -31,6 +33,7 @@ var _smsProviders = {
   // '솔라피': { requiredSecrets: ['SMS_API_KEY', 'SMS_API_SECRET'], send: function (settings, to, text) { ... HMAC 인증 ... } },
 };
 
+/** 설정된 문자 제공자 구현을 찾는다 (기본 알리고). 미지원 이름이면 null */
 function _smsProvider(settings) {
   return _smsProviders[String(settings['문자제공자'] || '알리고').trim()] || null;
 }
@@ -54,6 +57,7 @@ var smsChannel_ = {
     var missing = p.requiredSecrets.filter(function (k) { return !hasSecret(k); });
     return missing.length ? '미입력: ' + missing.join(', ') : '';
   },
+  /** to: 수신 휴대폰 번호. msg.settings 는 반복 발송 시 재조회를 아끼려 호출측에서 넘길 수 있음 */
   send: function (msg) {
     try {
       var settings = msg.settings || readSettings();

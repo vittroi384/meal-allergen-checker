@@ -3,6 +3,7 @@
  * 모든 api* 는 첫 인자 token, 첫 줄 requireSession(token). 예외: apiLogin/apiCheckSession/apiLogout.
  */
 
+/** 웹앱 진입점 (GET 요청): ui/index 템플릿을 렌더링. 이때 확인된 배포 URL/ID 를 기록해 둔다 */
 function doGet(e) {
   try { recordWebAppUrl_(true); } catch (err) { /* 무시 */ }
   var t = HtmlService.createTemplateFromFile('ui/index');
@@ -21,6 +22,7 @@ function include(name) {
 
 // ---------- 직렬화 (google.script.run 은 plain 객체만) ----------
 
+/** 학생 객체 → 웹앱 전송용 plain 객체 (알레르기명·라벨 등 표시용 필드를 미리 계산해 붙임) */
 function serializeStudent_(s) {
   var out = {
     _row: s._row || null, schoolYear: s.schoolYear, grade: s.grade, classNo: s.classNo, name: s.name,
@@ -35,6 +37,7 @@ function serializeStudent_(s) {
   return out;
 }
 
+/** 급식 메뉴 한 개 → 웹앱 전송용 plain 객체 */
 function serializeMenu_(m) {
   return {
     _row: m._row || null, date: m.date, mealType: m.mealType, name: m.name, codes: m.codes, codeNames: allergenNames(m.codes),
@@ -42,6 +45,7 @@ function serializeMenu_(m) {
   };
 }
 
+/** 한 끼 판별 결과(checkMeal) → 메뉴 목록 + 해당 학생별 원인(메뉴·코드·키워드) 텍스트로 직렬화 */
 function serializeMealResult_(r) {
   return {
     menus: r.menus.map(serializeMenu_),
@@ -61,6 +65,7 @@ function serializeMealResult_(r) {
   };
 }
 
+/** 설정 중 정의된 키만 골라 웹앱에 노출 (비밀값은 여기 포함되지 않음) */
 function publicSettings_(settings) {
   var out = {};
   SETTING_KEYS.forEach(function (k) {
@@ -71,6 +76,7 @@ function publicSettings_(settings) {
 
 // ---------- 부트스트랩 ----------
 
+/** 웹앱: 화면 공통 정보 (설정, 비밀값 설정 여부, 채널 상태, 트리거 목록, 이메일 잔여 한도 등) */
 function apiBootstrap(token) {
   requireSession(token);
   var settings = readSettings();
@@ -100,6 +106,7 @@ function apiInit(token) {
 
 // ---------- 대시보드 ----------
 
+/** 웹앱: 대시보드 데이터 (오늘 판별 + 주간 요약 + 최근 실패 로그 + 동기화 상태) */
 function apiDashboard(token) {
   requireSession(token);
   var today = todayStr_();
@@ -133,6 +140,7 @@ function apiDismissFailures(token) {
   return { ok: true };
 }
 
+/** 대시보드에서 캐시되는 부분: 오늘 끼니별 판별, 이번 주 날짜별 요약, 이번 달 미확인 메뉴 수 */
 function _buildDashboardCore(today) {
   var settings = readSettings();
   var mealTypes = managedMealTypes_(settings);
@@ -168,6 +176,7 @@ function _buildDashboardCore(today) {
 
 // ---------- 달력 / 날짜 ----------
 
+/** 웹앱: 달력용 한 달치 날짜별 요약 (캐시됨) */
 function apiMonth(token, ym) {
   requireSession(token);
   if (!/^\d{4}-\d{2}$/.test(ym || '')) throw new Error('월 형식 오류');
@@ -182,6 +191,7 @@ function apiMonth(token, ym) {
   });
 }
 
+/** 웹앱: 특정 날짜의 끼니별 상세 판별 결과 (캐시됨) */
 function apiDay(token, date) {
   requireSession(token);
   if (!isValidDateStr(date)) throw new Error('날짜 형식 오류');
@@ -200,6 +210,7 @@ function apiDay(token, date) {
 
 // ---------- 로그 ----------
 
+/** 웹앱: 최근 알림로그 목록. opts.failedOnly 로 실패 건만 필터 */
 function apiLogs(token, opts) {
   requireSession(token);
   var o = opts || {};
@@ -224,6 +235,7 @@ function apiPrintData(token, params) {
   var mealTypes = managedMealTypes_(settings);
   var students = readActiveStudents_(settings);
   var period = checkPeriod(students, readMealsInRange_(start, end, mealTypes), mealTypes);
+  // 날짜×끼니 판별 결과를 학급(학년-반) 단위로 다시 묶는다 — 인쇄물이 반별로 배부되기 때문
   var byClass = {};
   Object.keys(period).forEach(function (date) {
     Object.keys(period[date]).forEach(function (t) {

@@ -3,6 +3,7 @@
  * 입력은 checkMeal / checkPeriod 결과.
  */
 
+// HTML 이메일 본문에 넣을 문자열의 특수문자 이스케이프 (마크업 깨짐·스크립트 삽입 방지)
 function _esc(s) {
   return String(s === undefined || s === null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -141,6 +142,8 @@ function formatStaffWeekly(p) {
  * '[OO초] 내일(9/1) 중식에 홍길동 학생이 못 먹는 메뉴가 있습니다: 돈까스(밀, 돼지고기)'
  */
 function formatParentMessage(p) {
+  // 대상일이 오늘의 바로 다음날이면 '내일(9/1)', 아니면 '9/1(화)' 그대로.
+  // replace(/\(.\)$/) 는 끝의 요일 '(화)' 제거, slice(-3) 은 그 요일 부분만 다시 붙이는 용도.
   var rel = p.todayStr && addDays(p.todayStr, 1) === p.date ? '내일' : '';
   var dateLabel = (rel ? rel + '(' : '') + formatKoreanDate(p.date).replace(/\(.\)$/, '') + (rel ? ')' : formatKoreanDate(p.date).slice(-3));
   var school = p.schoolName ? '[' + p.schoolName + '] ' : '';

@@ -1,3 +1,8 @@
+<!--
+  이관용 설정 가져오기 다이얼로그 (스프레드시트 메뉴에서 여는 독립 HtmlService 창 — SPA 와 무관).
+  구 계정에서 내보낸 JSON 을 붙여넣으면 서버 검증(미리보기)을 거쳐 설정 시트 덮어쓰기 + 트리거 재등록을 실행한다.
+  실행 버튼은 미리보기가 성공해야만 활성화된다.
+-->
 <style>
   body { font-family: -apple-system, 'Malgun Gothic', sans-serif; margin: 0; padding: 12px; color: #111827; }
   p { margin: 0 0 8px; font-size: 13px; line-height: 1.5; }
@@ -17,11 +22,13 @@
 <button id="btn" onclick="run()" disabled>가져오기 실행</button> <span id="msg"></span>
 <script>
   var timer = null;
+  // 붙여넣기·타이핑마다 실행 버튼을 잠그고, 입력이 멈춘 뒤 400ms 후에만 서버 미리보기 호출 (디바운스)
   function onInput() {
     clearTimeout(timer);
     document.getElementById('btn').disabled = true;
     timer = setTimeout(preview, 400);
   }
+  // 서버에 JSON 검증을 맡겨 학교명·설정 개수·다시 입력할 비밀값을 미리 보여 준다. 통과하면 실행 버튼 활성화
   function preview() {
     var text = document.getElementById('json').value.trim();
     var pv = document.getElementById('preview');
@@ -35,6 +42,7 @@
     }).withFailureHandler(function (e) { pv.style.display = 'block'; pv.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; })
       .dialogPreviewMigration(text);
   }
+  // 실제 가져오기 실행. 완료 후 새로 입력해야 할 비밀값 목록을 안내한다
   function run() {
     var btn = document.getElementById('btn');
     btn.disabled = true;
@@ -50,8 +58,10 @@
     }).withFailureHandler(function (e) { document.getElementById('msg').innerHTML = '<span class="err">' + esc(e.message) + '</span>'; btn.disabled = false; })
       .dialogImportMigration(document.getElementById('json').value);
   }
+  // 비밀값 프로퍼티 키 → 사용자용 한국어 라벨
   function label(k) {
     return { NEIS_API_KEY: 'NEIS 인증키', SMS_API_KEY: '문자 API 키', SMS_USER_ID: '문자 사용자 ID', SMS_API_SECRET: '문자 API 시크릿', TELEGRAM_BOT_TOKEN: '텔레그램 봇 토큰' }[k] || k;
   }
+  // HTML 이스케이프 (서버 메시지를 innerHTML 로 넣기 전 필수)
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 </script>

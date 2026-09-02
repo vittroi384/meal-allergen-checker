@@ -83,8 +83,10 @@ function cellToDateStr(v) {
     return y + '-' + m + '-' + d;
   }
   var s = String(v === undefined || v === null ? '' : v).trim();
+  // '2026-09-01' / '2026.9.1.' / '2026/9/1' 형태
   var m1 = /^(\d{4})[-./](\d{1,2})[-./](\d{1,2})\.?$/.exec(s);
   if (m1) return m1[1] + '-' + m1[2].padStart(2, '0') + '-' + m1[3].padStart(2, '0');
+  // '20260901' 형태 (구분자 없는 8자리)
   var m2 = /^(\d{4})(\d{2})(\d{2})$/.exec(s);
   if (m2) return m2[1] + '-' + m2[2] + '-' + m2[3];
   return '';
@@ -93,6 +95,7 @@ function cellToDateStr(v) {
 /** 쉼표 구분 문자열 → trim 된 비어있지 않은 항목 배열 */
 function splitList(s) {
   return String(s === undefined || s === null ? '' : s)
+    // 반각 쉼표 외에 전각 쉼표(，)·가운뎃점(、)·세미콜론(;)도 구분자로 인정
     .split(/[,，、;]/)
     .map(function (x) { return x.trim(); })
     .filter(function (x) { return x !== ''; });

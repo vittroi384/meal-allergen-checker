@@ -3,6 +3,7 @@
  * 실제 작업 함수(run*_)는 Sync.js / Notify.js 에 있다 (3·4단계). 아직 없으면 로그만 남긴다.
  */
 
+/** 모든 트리거 공통 래퍼: 스크립트 락으로 동시 실행을 막고, 미배포 기능·예외를 알림로그에 남긴다 */
 function _runGuarded(name, fn) {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(30 * 1000)) {
@@ -55,6 +56,7 @@ function triggerParentEvening() {
   _runGuarded('triggerParentEvening', function () { runParentNotices_({}); });
 }
 
+/** NEIS 인증키와 학교코드가 모두 설정됐는지. 미설정이면 동기화 트리거는 조용히 건너뛴다 */
 function _isNeisConfigured() {
   var s = readSettings();
   return hasSecret('NEIS_API_KEY') && String(s['학교코드'] || '').trim() !== '';

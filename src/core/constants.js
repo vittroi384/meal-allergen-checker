@@ -26,12 +26,14 @@ var ALLERGENS = Object.freeze({
   19: '잣',
 });
 
+// 알레르기 번호로 인정하는 범위 (이 밖의 숫자는 파싱 시 버린다)
 var ALLERGEN_MIN = 1;
 var ALLERGEN_MAX = 19;
 
 /** 알레르기코드 셀에 이 값이 있으면 "알레르기 없음으로 사람이 확인함" (확인 필요 배지 해제) */
 var CODES_CHECKED_NONE = '-';
 
+/** 스프레드시트 탭(시트) 이름 */
 var SHEETS = Object.freeze({
   STUDENTS: '학생',
   MEALS: '급식',
@@ -40,6 +42,7 @@ var SHEETS = Object.freeze({
   TEMPLATE: '학생_업로드템플릿',
 });
 
+/** 각 시트의 헤더 행. 시트를 새로 만들 때 이 순서대로 열이 생성된다 */
 var HEADERS = Object.freeze({
   STUDENTS: Object.freeze([
     '학년도', '학년', '반', '이름', '담임이름', '담임전화번호', '알레르기코드', '기타알레르기', '비고',
@@ -67,18 +70,23 @@ var FIELD_MAP = Object.freeze({
   }),
 });
 
+/** 식사구분 값과 표시 순서 */
 var MEAL_TYPES = Object.freeze(['조식', '중식', '석식']);
 /** NEIS MMEAL_SC_CODE */
 var NEIS_MEAL_CODE = Object.freeze({ '조식': '1', '중식': '2', '석식': '3' });
 var NEIS_MEAL_NAME = Object.freeze({ '1': '조식', '2': '중식', '3': '석식' });
 
+/** 급식 행의 출처: NEIS 자동 수집 / 사람이 직접 입력·수정 (수동은 재동기화에서 보호됨) */
 var SOURCES = Object.freeze({ NEIS: 'NEIS', MANUAL: '수동' });
 
+/** 학생 시트 '학부모알림' 열에 들어갈 수 있는 값 */
 var PARENT_NOTIFY = Object.freeze({ NONE: '없음', EMAIL: '이메일', SMS: '문자' });
 var PARENT_NOTIFY_VALUES = Object.freeze(['없음', '이메일', '문자']);
 
+/** 알림로그 '채널' 열 값 (어떤 수단으로 발송했는지) */
 var CHANNELS = Object.freeze({ EMAIL: '이메일', SMS: '문자', TELEGRAM: '텔레그램', SYSTEM: '시스템' });
 
+/** 알림로그 '종류' 열 값 (어떤 알림이었는지) */
 var NOTICE_KINDS = Object.freeze({
   STAFF_DAILY: '담당자일일',
   STAFF_WEEKLY: '담당자주간',
@@ -134,8 +142,10 @@ var STATE_KEYS = Object.freeze([
   'FAILURES_DISMISSED_AT', // 대시보드 "실패 알림 숨기기" 시각 — 이 시각 이전 실패는 표시 안 함
 ]);
 
+// 웹앱 로그인 세션 유지 시간(초). 6시간이 Apps Script CacheService 가 허용하는 최대치
 var SESSION_TTL_SECONDS = 6 * 60 * 60; // CacheService 상한
 
+/** 요일 표시 문자. 인덱스가 dayOfWeek() 반환값과 같다 (0=일요일) */
 var KOREAN_DAYS = Object.freeze(['일', '월', '화', '수', '목', '금', '토']);
 
 /** 설정 시트에서 체크박스로 표시할 불리언 키 */

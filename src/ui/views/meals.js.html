@@ -6,11 +6,13 @@ App.views.meals = {
   render: function (el, r) {
     var h = App.h;
     var self = this;
+    // 표시할 달: URL 쿼리(?ym=) > 마지막에 보던 달 > 이번 달
     var ym = (r.params && /^\d{4}-\d{2}$/.test(r.params.ym)) ? r.params.ym : (self._ym || App.today().slice(0, 7));
     self._ym = ym;
     return App.cached('meals:' + ym, function () { return App.api('apiMealsOverview', ym); }).then(function (o) {
       var boot = App.state.boot;
       var p = ym.split('-');
+      // NEIS 동기화 가능 여부: 인증키 + 학교 설정이 모두 있어야 버튼 활성화
       var configured = boot.secretStatus.NEIS_API_KEY && boot.settings['학교코드'];
       el.innerHTML =
         '<div class="page-head"><div><h2>급식 관리</h2><div class="sub">' + (boot.settings['학교명'] ? h(boot.settings['학교명']) + ' · ' : '') + '관리 끼니 ' + boot.mealTypes.join(', ') + (o.lastSync ? ' · 마지막 동기화 ' + h(o.lastSync.at || '') + (o.lastSync.ok ? ' 성공' : ' <span class="error-text">실패</span>') : '') + '</div></div>' +
@@ -44,8 +46,10 @@ App.views.meals = {
 
         (o.months.length ? '<div class="card"><div class="card-head"><h3>데이터가 있는 달</h3></div><div class="inline">' + o.months.map(function (m) { return '<a class="btn sm' + (m.ym === ym ? ' primary' : '') + '" href="#/meals?ym=' + m.ym + '">' + m.ym + ' <span class="small" style="opacity:.7">(' + m.count + ')</span></a>'; }).join('') + '</div></div>' : '');
 
+      // 급식 캐시 무효화 후 같은 달 재렌더
       var reload = function () { App.changed('meals'); return self.render(el, { params: { ym: ym } }); };
       App.$('#ym').onchange = function (e) { if (e.target.value) App.go('meals?ym=' + e.target.value); };
+      // NEIS 동기화 실행: apiSyncMonths — 결과 통계를 카드에 표시하고, 성공 시 문구를 읽을 시간을 두고 재렌더
       function sync(months, btn) {
         App.busy(btn, true);
         App.$('#sync-result').innerHTML = '<div class="loading" style="padding:8px"><span class="spinner"></span> NEIS 에서 가져오는 중… (최대 1분)</div>';
@@ -63,8 +67,10 @@ App.views.meals = {
       App.$('#dl-meals').onclick = function (e) { App.downloadXlsx('meals', { ym: ym }, e.currentTarget); };
       App.$('#dl-result').onclick = function (e) { App.downloadXlsx('month', { ym: ym }, e.currentTarget); };
       App.$('#import').onclick = function () { App.mealImport(ym, reload); };
+      // "수정" 버튼에서 행번호로 메뉴 객체를 찾기 위한 매핑
       var uncheckedByRow = {};
       o.unchecked.forEach(function (m) { uncheckedByRow[m._row] = m; });
+      // 표 안 버튼 위임: 확인함(apiMarkMenuChecked) / 수정(메뉴 편집 모달) / NEIS 되돌리기(확인 후 apiRevertMeal)
       App.on(el, 'click', function (e) {
         var b = e.target.closest('button');
         if (!b || !el.contains(b)) return;
@@ -93,6 +99,7 @@ App.mealImport = function (ym, onDone) {
     onMount: function (el, api) {
       var file = null;
       App.$('#file', el).onchange = function () { file = this.files[0]; App.$('#fname', el).textContent = file ? file.name : ''; };
+      // 미리보기: 파일을 base64 로 읽어 apiPreviewMealImport — 서버가 검증한 행·오류·대체될 끼니를 표로 표시
       App.$('#prev', el).onclick = function () {
         var btn = this; App.$('#err', el).textContent = '';
         if (!file) { App.$('#err', el).textContent = '파일을 선택하세요'; return; }
@@ -107,6 +114,7 @@ App.mealImport = function (ym, onDone) {
           App.$('#apply', el).disabled = !r.ok;
         }).catch(function (e) { App.$('#err', el).textContent = e.message; }).then(function () { App.busy(btn, false); });
       };
+      // 반영: 미리보기 때 서버가 돌려준 rawRows 를 그대로 apiApplyMealImport 로 — 파일을 다시 읽지 않아 미리보기와 반영 내용이 어긋나지 않는다
       App.$('#apply', el).onclick = function () {
         var btn = this;
         if (!ok) return;

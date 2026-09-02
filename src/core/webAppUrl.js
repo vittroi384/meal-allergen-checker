@@ -7,6 +7,7 @@
  * 외부 공유용 표준 주소 https://script.google.com/macros/s/{배포ID}/exec 로 바꾼다.
  */
 
+// 조직 전용 주소 두 형태. 캡처: [1]=도메인 앞부분, [2]='s/배포ID/exec(또는 dev)', [3]=뒤의 쿼리/해시
 var _WEBAPP_ORG_PATTERNS = [
   /^(https:\/\/script\.google\.com)\/a\/macros\/[^/]+\/(s\/[^/?#]+\/(?:exec|dev))(.*)$/,
   /^(https:\/\/script\.google\.com)\/a\/[^/]+\/macros\/(s\/[^/?#]+\/(?:exec|dev))(.*)$/,

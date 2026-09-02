@@ -13,10 +13,12 @@ function parseAllergyCodes(input) {
   }
   var s = String(input).trim();
   if (s === '' || s === CODES_CHECKED_NONE) return [];
+  // 구분자 종류와 무관하게 숫자 덩어리만 추출: '1, 5.6' → ['1','5','6']
   var nums = s.match(/\d+/g) || [];
   return _uniqSortedCodes(nums.map(Number));
 }
 
+// 1~19 범위 밖 숫자와 중복을 버리고 오름차순 정렬 (parseAllergyCodes 전용 헬퍼)
 function _uniqSortedCodes(nums) {
   var seen = {};
   var out = [];
@@ -184,7 +186,9 @@ function checkMeal(students, menus) {
     menus.forEach(function (menu) {
       var matchedCodes = menu.codes.filter(function (c) { return st.codes.indexOf(c) >= 0; });
       var normName = _normKeyword(menu.name);
+      // expandStudentKeywords 를 거치지 않은 학생은 동의어 없이 키워드 그대로 매칭
       var kwTerms = st.keywordTerms || st.keywords.map(function (k) { return { keyword: k, terms: [k] }; });
+      // 키워드는 메뉴명 부분 문자열 매칭 (공백 제거·소문자 비교). 동의어 중 하나라도 포함되면 해당
       var matchedKeywords = kwTerms.filter(function (kt) {
         return kt.terms.some(function (t) { var nt = _normKeyword(t); return nt !== '' && normName.indexOf(nt) >= 0; });
       }).map(function (kt) { return kt.keyword; });

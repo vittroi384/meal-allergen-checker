@@ -50,6 +50,7 @@ function applyAllFormatting_() {
   return n;
 }
 
+/** 시트 1개에 전체 서식 적용: 헤더 스타일·보호, 열 너비·정렬·줄바꿈, 필터, 줄무늬, 행 높이. */
 function applySheetFormatting_(sheet) {
   var lastCol = Math.max(1, sheet.getLastColumn());
   var maxRows = sheet.getMaxRows();
@@ -73,6 +74,7 @@ function applySheetFormatting_(sheet) {
   headers.forEach(function (h, i) {
     var col = i + 1;
     var width = COLUMN_WIDTHS[h];
+    // 표에 정의되지 않은 열은 내용에 맞춰 자동 조절 후 여유(16px)를 더한다
     if (!width) {
       try { sheet.autoResizeColumn(col); } catch (e) { /* ignore */ }
       width = Math.max(sheet.getColumnWidth(col) + 16, 90);

@@ -19,6 +19,8 @@ function runSyncMonths_(yearMonths, opts) {
 
   try {
     ensureSheet_(SHEETS.MEALS, HEADERS.MEALS);
+    // 달 단위로 처리: NEIS 조회 → 기존 행과 비교(calcSyncPlan) → 삭제·삽입.
+    // 수동 수정된 끼니는 calcSyncPlan 이 계획에서 제외해 보호하고, protectedMeals 로 보고만 한다.
     yearMonths.forEach(function (ym) {
       var range = monthRange(ym);
       var fetched = fetchMealsForRange_(range.start, range.end, mealTypes, settings);
@@ -29,6 +31,7 @@ function runSyncMonths_(yearMonths, opts) {
       appendMeals_(plan.insertRows);
       Object.keys(total).forEach(function (k) { total[k] += plan.stats[k] || 0; });
       plan.protectedMeals.forEach(function (k) { protectedMeals.push(k); });
+      // 코드 없이 들어온 메뉴 = 담당자가 알레르기 정보를 직접 확인해야 하는 건수
       result.uncheckedCount += plan.insertRows.filter(function (r) { return !r.codes; }).length;
     });
     sortMealsSheet_();

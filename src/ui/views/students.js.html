@@ -5,6 +5,7 @@ App.views.students = {
   render: function (el) {
     var h = App.h;
     var self = this;
+    // 필터·정렬은 뷰 객체에 저장해 화면을 떠났다 돌아와도 유지된다
     var filter = self._filter || { q: '', grade: '', classNo: '', activeOnly: true };
     self._filter = filter;
     var sort = self._sort || { key: 'class', dir: 1 };
@@ -13,6 +14,7 @@ App.views.students = {
       var all = data.students;
       var grades = {}, classes = {};
       all.forEach(function (s) { grades[s.grade] = true; if (!filter.grade || Number(filter.grade) === s.grade) classes[s.classNo] = true; });
+      // 필터 적용: 현재 학년도 사용 중 / 학년 / 반 / 검색어(공백 무시, 이름·알레르기·담임·연락처 통합 검색)
       var list = all.filter(function (s) {
         if (filter.activeOnly && (!s.active || (s.schoolYear && s.schoolYear !== data.schoolYear))) return false;
         if (filter.grade && s.grade !== Number(filter.grade)) return false;
@@ -36,6 +38,7 @@ App.views.students = {
         active: function (a, b) { return (a.active ? 1 : 0) - (b.active ? 1 : 0) || byClass(a, b); },
       }[sort.key] || byClass;
       list.sort(function (a, b) { return cmp(a, b) * sort.dir; });
+      // 정렬 가능한 헤더 셀 (현재 정렬 키에 ▲▼ 표시)
       var th = function (key, label, cls) {
         var arrow = sort.key === key ? (sort.dir === 1 ? '▲' : '▼') : '';
         return '<th class="sortable ' + (cls || '') + '" data-sort="' + key + '" title="클릭하여 정렬">' + label + '<span class="arrow">' + arrow + '</span></th>';
@@ -69,8 +72,10 @@ App.views.students = {
         }).join('') : '<tr><td colspan="9" class="empty">' + (all.length ? '조건에 맞는 학생이 없습니다' : '등록된 학생이 없습니다. "학생 추가" 또는 "일괄 업로드"로 시작하세요.') + '</td></tr>') +
         '</tbody></table></div></div>';
 
+      // 행 버튼(수정·사용 토글)에서 행번호로 학생 객체를 찾기 위한 매핑
       var byRow = {};
       all.forEach(function (s) { byRow[s._row] = s; });
+      // reload: 서버 데이터가 바뀐 경우(캐시 무효화 후 렌더), rerender: 필터·정렬만 바뀐 경우(캐시 그대로)
       var reload = function () { App.changed('students'); return self.render(el); };
       var rerender = function () { return self.render(el); };
       var applyFilter = function () { filter.q = App.$('#q').value; filter.grade = App.$('#grade').value; filter.classNo = App.$('#class').value; filter.activeOnly = App.$('#active-only').checked; rerender(); };
@@ -83,6 +88,7 @@ App.views.students = {
       App.$('#upload').onclick = function () { App.studentUpload(reload); };
       App.$('#dl-template').onclick = function (e) { App.downloadXlsx('template', {}, e.currentTarget); };
       App.$('#dl-list').onclick = function (e) { App.downloadXlsx('students', { grade: filter.grade, classNo: filter.classNo, activeOnly: filter.activeOnly }, e.currentTarget); };
+      // 위임: 헤더 클릭 정렬(같은 키면 방향 반전) / 수정 버튼(학생 모달) / 사용·중지 토글(확인 후 apiSetStudentActive)
       App.on(el, 'click', function (e) {
         var thEl = e.target.closest('th[data-sort]');
         if (thEl && el.contains(thEl)) {
@@ -101,6 +107,7 @@ App.views.students = {
           });
         }
       });
+      // 검색 중 재렌더로 날아간 검색창 포커스 복원 (커서는 끝으로)
       if (document.activeElement === document.body && filter.q) { var q = App.$('#q'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
     });
   },
@@ -115,6 +122,7 @@ App.keywordInput = function (container, initial) {
   var values = (initial || []).slice();
   var norm = function (s) { return String(s || '').replace(/\s+/g, '').toLowerCase(); };
   function listed(k) { return (App.state.boot.keywordList || []).some(function (e) { return norm(e.word) === norm(k) || e.synonyms.some(function (s) { return norm(s) === norm(k); }); }); }
+  // 칩·입력창·제안 버튼·"목록에 추가" 영역을 통째로 다시 그린다 (input 이 새로 생기므로 리스너도 매번 재등록)
   function draw() {
     var list = App.state.boot.keywordList || [];
     var suggestions = list.filter(function (e) { return !values.some(function (v) { return norm(v) === norm(e.word); }); }).slice(0, 12);
@@ -131,6 +139,7 @@ App.keywordInput = function (container, initial) {
     });
     input.addEventListener('blur', function () { if (input.value.trim()) add(input.value); });
   }
+  // 쉼표류 구분자(, ， 、 ;)로 나눠 여러 개 추가 — 공백 무시·소문자 기준으로 중복 제거
   function add(text) {
     String(text || '').split(/[,，、;]/).map(function (s) { return s.trim(); }).filter(Boolean).forEach(function (v) {
       if (!values.some(function (x) { return norm(x) === norm(v); })) values.push(v);
@@ -138,6 +147,7 @@ App.keywordInput = function (container, initial) {
     draw();
     var input = App.$('input', container); if (input) input.focus();
   }
+  // 칩 ✕ 삭제 / 제안 클릭 추가 / "목록에 추가"(apiAddKeyword — 부트의 키워드 목록도 갱신) 위임
   App.on(container, 'click', function (e) {
     var b = e.target.closest('button');
     if (!b) return;
@@ -150,9 +160,11 @@ App.keywordInput = function (container, initial) {
     }
   });
   draw();
+  // get(): 아직 Enter 하지 않은 입력값까지 반영해 반환 (저장 직전 호출)
   return { get: function () { var input = App.$('input', container); if (input && input.value.trim()) add(input.value); return values.slice(); } };
 };
 
+/** 학생 추가/수정 모달 — s 가 빈 객체면 추가. 저장은 apiSaveStudent (서버 검증 오류는 모달 안에, 경고는 토스트로 표시) */
 App.studentEditor = function (s, schoolYear, onSaved) {
   var h = App.h;
   var allergens = App.state.boot.allergens;
@@ -215,16 +227,19 @@ App.uploadModal = function (cfg) {
     title: cfg.title, body: body, wide: true,
     footer: '<span class="left small muted">' + h(cfg.note || '') + '</span><button class="btn" data-close>닫기</button><button class="btn" id="up-preview">미리보기</button><button class="btn primary" id="up-apply" disabled>반영</button>',
     onMount: function (el, api) {
+      // 탭 전환(파일/붙여넣기): hidden 만 토글해 입력값은 유지
       var mode = 'file', pickedFile = null;
       App.$$('.tabs button', el).forEach(function (b) {
         b.onclick = function () { App.$$('.tabs button', el).forEach(function (x) { x.classList.toggle('active', x === b); }); mode = b.dataset.tab; App.$('#tab-file', el).hidden = mode !== 'file'; App.$('#tab-paste', el).hidden = mode !== 'paste'; };
       });
       var fileInput = App.$('#file', el), dz = App.$('#dz', el);
       fileInput.onchange = function () { pickedFile = fileInput.files[0]; App.$('#file-name', el).textContent = pickedFile ? pickedFile.name + ' (' + Math.round(pickedFile.size / 1024) + ' KB)' : ''; };
+      // 드래그&드롭: 브라우저 기본 동작(파일 열기)을 막고 드롭된 파일을 선택 파일로 사용
       ['dragenter', 'dragover'].forEach(function (ev) { dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.add('over'); }); });
       ['dragleave', 'drop'].forEach(function (ev) { dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.remove('over'); }); });
       dz.addEventListener('drop', function (e) { if (e.dataTransfer.files[0]) { pickedFile = e.dataTransfer.files[0]; App.$('#file-name', el).textContent = pickedFile.name; } });
 
+      // 서버 검증 결과(plan)를 추가/수정/변경 없음/오류/경고로 나눠 필터 가능한 표로. 오류가 하나라도 있으면 반영 버튼 잠금
       function renderPreview() {
         var filterMode = 'all';
         var box = App.$('#preview', el);
@@ -248,6 +263,7 @@ App.uploadModal = function (cfg) {
         draw();
         App.$('#up-apply', el).disabled = !plan.ok;
       }
+      // 미리보기: 파일은 base64, 붙여넣기는 TSV 그대로 previewApi 에 보내 서버에서 파싱·검증
       App.$('#up-preview', el).onclick = function () {
         var btn = this; App.$('#up-err', el).textContent = ''; App.$('#up-apply', el).disabled = true;
         var input;
@@ -264,6 +280,7 @@ App.uploadModal = function (cfg) {
         input.then(function (inp) { return App.api(cfg.previewApi, inp); }).then(function (r) { rawRows = r.rawRows; plan = r.plan; renderPreview(); })
           .catch(function (e) { App.$('#up-err', el).textContent = e.message; }).then(function () { App.busy(btn, false); });
       };
+      // 반영: 미리보기 때 받은 rawRows 를 applyApi 로 — 서버가 다시 검증하고, 실패하면 새 plan 으로 표를 갱신
       App.$('#up-apply', el).onclick = function () {
         var btn = this;
         if (!plan || !plan.ok) return;
@@ -281,6 +298,7 @@ App.uploadModal = function (cfg) {
   if (!modal) App.toast('먼저 열려 있는 창을 닫아 주세요');
 };
 
+/** 학생 일괄 업로드 — 공용 uploadModal 에 학생용 API·표 구성만 주입 */
 App.studentUpload = function (onDone) {
   var h = App.h;
   App.uploadModal({

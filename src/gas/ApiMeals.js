@@ -17,6 +17,7 @@ function apiSaveMenu(token, m) {
   if (m._row) {
     var existing = readMeals_().filter(function (x) { return x._row === m._row; })[0];
     if (!existing) throw new Error('수정할 메뉴를 찾지 못했습니다. 새로고침 후 다시 시도하세요');
+    // '없음 확인(-)' 상태 유지 중이면 기존 확인 시각을 보존, 새로 확인이면 지금 시각을 기록
     var checkedAt = codesStr === CODES_CHECKED_NONE ? (existing.checkedNone && existing.checkedAt ? existing.checkedAt : nowStr_().slice(0, 16)) : '';
     updateObjectRow_(SHEETS.MEALS, m._row, HEADERS.MEALS, FIELD_MAP.MEALS,
       { date: m.date, mealType: m.mealType, name: name, codes: codesStr, manualEdited: true, checkedAt: checkedAt });
@@ -43,6 +44,7 @@ function _protectMeal(date, mealType) {
   bumpDataVersion_();
 }
 
+/** 메뉴 1행 삭제(웹앱). 삭제 후 같은 끼니를 보호 처리해 다음 동기화가 다시 덮어쓰지 않게 한다. */
 function apiDeleteMenu(token, row) {
   requireSession(token);
   var target = readMeals_().filter(function (x) { return x._row === row; })[0];
@@ -64,15 +66,18 @@ function apiMarkMenuChecked(token, row, checked) {
   return { ok: true };
 }
 
+/** 수동 수정된 끼니를 NEIS 원본으로 되돌리기(웹앱). 실제 처리는 Sync 쪽 revertMealToNeis_. */
 function apiRevertMeal(token, date, mealType) {
   requireSession(token);
   return revertMealToNeis_(date, mealType);
 }
 
+/** 선택한 월들(yyyy-MM)을 NEIS 와 수동 동기화(웹앱). 결과 알림은 보내지 않는다. */
 function apiSyncMonths(token, months) {
   requireSession(token);
   var list = (months || []).filter(function (m) { return /^\d{4}-\d{2}$/.test(m); });
   if (!list.length) throw new Error('동기화할 월을 선택하세요');
+  // 트리거 자동 동기화 등과 겹치지 않게 스크립트 락 사용 (5초 안에 못 얻으면 포기)
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(5000)) throw new Error('다른 동기화가 진행 중입니다. 잠시 후 다시 시도하세요');
   try {
@@ -123,8 +128,10 @@ function apiPreviewMealImport(token, input) {
   return { rawRows: rawRows, ok: v.ok, errorCount: v.errorCount, rows: v.rows, replacedMeals: Object.keys(keys).sort() };
 }
 
+/** xlsx 가져오기 반영(웹앱). 미리보기의 rawRows 를 되돌려 받아 서버에서 재검증 후 해당 끼니를 통째로 대체. */
 function apiApplyMealImport(token, input) {
   requireSession(token);
+  // 클라이언트가 보낸 값을 그대로 믿지 않고 서버에서 다시 검증한다
   var v = validateMealImportRows(input.rawRows || [], monthRange(input.ym));
   if (!v.ok) return { ok: false, error: '오류 행 ' + v.errorCount + '건 — 반영하지 않았습니다' };
   var plan = calcMealImportPlan(readMeals_(), v.rows.map(function (r) { return r.menu; }));

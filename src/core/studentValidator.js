@@ -4,6 +4,7 @@
  * 학생 식별키 = 학년도+학년+반+이름. 동명이인은 허용하되 경고한다.
  */
 
+// 이메일 대략 검증: 공백 없이 문자@문자.문자 형태 (예: 'abc@school.com' 통과, 'abc@x' 거절)
 var _EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** 휴대폰 번호 정규화: 010-1234-5678. 유효하지 않으면 null. 빈값은 ''. */
@@ -28,6 +29,7 @@ function normalizeAnyPhone(v) {
   var d = s.replace(/\D/g, '');
   if (d.length < 8 || d.length > 12) return null;
   if (d.length === 11) return d.slice(0, 3) + '-' + d.slice(3, 7) + '-' + d.slice(7);
+  // 10자리 중 서울(02) 국번은 2-4-4, 그 외(지역번호·옛 휴대폰)는 3-3-4 로 하이픈
   if (d.length === 10) return d.slice(0, 2) === '02' ? d.slice(0, 2) + '-' + d.slice(2, 6) + '-' + d.slice(6) : d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6);
   if (d.length === 9) return d.slice(0, 2) + '-' + d.slice(2, 5) + '-' + d.slice(5);
   return d;
@@ -38,10 +40,12 @@ function validateCodesCell(v) {
   var s = String(v === undefined || v === null ? '' : v).trim();
   var nums = (s.match(/\d+/g) || []).map(Number);
   var invalid = nums.filter(function (n) { return n < ALLERGEN_MIN || n > ALLERGEN_MAX; });
+  // 허용 문자(숫자·구분 기호)를 지우고 남는 게 있으면 오타로 간주 (예: '1.5a' 의 'a')
   var nonNumeric = s.replace(/[\d\s,.\-;、，()\/]/g, '');
   return { codes: parseAllergyCodes(s), invalid: invalid, hasGarbage: nonNumeric !== '' && s !== CODES_CHECKED_NONE };
 }
 
+// 1 이상의 정수인지 (학년·반 검증용)
 function _isPosInt(v) {
   var n = Number(v);
   return String(v === undefined || v === null ? '' : v).trim() !== '' && Number.isInteger(n) && n > 0;
@@ -104,6 +108,7 @@ function validateStudentRow(raw, schoolYear) {
 /** 두 학생의 갱신 대상 필드 비교 → 달라진 필드명 배열 */
 var _MERGE_FIELDS = ['teacherName', 'teacherPhone', 'codes', 'keywords', 'note', 'parentEmail', 'parentPhone', 'parentNotify', 'active'];
 
+// _MERGE_FIELDS 만 비교해 달라진 필드명 반환 (배열 필드는 JSON 문자열로, 나머지는 문자열로 비교)
 function _diffFields(existing, incoming) {
   return _MERGE_FIELDS.filter(function (f) {
     var a = existing[f], b = incoming[f];
@@ -160,6 +165,7 @@ function calcStudentMergePlan(rawRows, existingStudents, schoolYear) {
   rows.forEach(function (r) {
     if (r.status === '오류') return;
     var key = studentKey(r.student);
+    // 반영 후 같은 키 인원 = 파일 등장 수 + (파일과 짝지어지지 않고 남은 기존 행 수)
     var total = seenCount[key] + Math.max(0, (existingByKey[key] || []).length - seenCount[key]);
     if (total > 1) r.warnings.push('같은 반에 동명이인(' + r.student.name + ')이 ' + total + '명입니다. 시트에서 비고 등으로 구분하세요');
   });

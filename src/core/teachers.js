@@ -3,6 +3,7 @@
  * 같은 반에 서로 다른 (이름, 전화번호) 조합이 섞이면 가장 많이 적힌 조합을 쓰고 conflict 로 표시한다.
  */
 
+// 담임 이름+전화번호를 제어문자(U+0001) 구분자로 이어붙인 비교용 키. 둘 다 비어 있으면 ''
 function _teacherCombo(s) {
   var n = String(s.teacherName || '').trim();
   var p = String(s.teacherPhone || '').trim();
@@ -24,6 +25,7 @@ function buildTeacherMapFromStudents(students) {
   });
   var map = {};
   Object.keys(counts).forEach(function (k) {
+    // 많이 적힌 조합 우선, 동수면 이름·전화 가나다순 → combos[0] 이 대표 담임
     var combos = Object.keys(counts[k]).map(function (c) {
       var parts = c.split('');
       return { name: parts[0], phone: parts[1], count: counts[k][c] };

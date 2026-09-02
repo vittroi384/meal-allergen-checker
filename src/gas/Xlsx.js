@@ -12,6 +12,8 @@ function xlsxBase64ToValues_(base64, filename) {
   var bytes = Utilities.base64Decode(String(base64 || '').replace(/^data:[^;]+;base64,/, ''));
   if (bytes.length > XLSX_MAX_BYTES) throw new Error('파일이 5MB 를 넘습니다');
   var blob = Utilities.newBlob(bytes, XLSX_MIME, filename || 'upload.xlsx');
+  // Apps Script 에는 xlsx 파서가 없으므로 Drive 에 올리면서 Google 시트로 변환시킨 뒤 값을 읽는다.
+  // 임시 파일은 finally 에서 반드시 삭제 (실패해도 경고 로그만 남기고 계속).
   var file = Drive.Files.create({ name: 'tmp_import_' + Date.now(), mimeType: GSHEET_MIME }, blob, { fields: 'id' });
   try {
     var ss = SpreadsheetApp.openById(file.id);
@@ -28,6 +30,7 @@ function xlsxBase64ToValues_(base64, filename) {
  * @param sheets [{ name, headers: string[], rows: any[][], widths?: number[] }]
  */
 function buildXlsxBase64_(sheets) {
+  // 반대 방향 변환: 임시 Google 시트를 만들어 내용을 채우고 Drive export API 로 xlsx 를 받는다
   var ss = SpreadsheetApp.create('tmp_export_' + Date.now());
   var id = ss.getId();
   try {
@@ -41,6 +44,7 @@ function buildXlsxBase64_(sheets) {
         return row.map(function (c) { return c === null || c === undefined ? '' : c; });
       }));
       if (width > 0) {
+        // 전체를 텍스트 서식(@)으로: 날짜·전화번호·코드가 엑셀에서 숫자/날짜로 변형되는 것을 방지
         sh.getRange(1, 1, data.length, width).setNumberFormat('@').setValues(data);
         sh.getRange(1, 1, 1, width).setFontWeight('bold').setBackground('#dbeafe');
         sh.setFrozenRows(1);
@@ -59,6 +63,7 @@ function buildXlsxBase64_(sheets) {
   }
 }
 
+/** 파일명에 쓸 수 없는 문자·공백을 _ 로 치환 */
 function _safeFilename(s) {
   return String(s || '').replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, '_');
 }
@@ -99,6 +104,7 @@ function apiDownloadXlsx(token, kind, params) {
 
 // ---------- 내보내기 내용 ----------
 
+// 여러 내보내기에 공통으로 첨부하는 알레르기 코드표 시트 사양
 var _CODE_TABLE_SHEET = {
   name: '알레르기코드표',
   headers: ['코드', '명칭'],
@@ -106,6 +112,7 @@ var _CODE_TABLE_SHEET = {
   widths: [60, 160],
 };
 
+/** 학생 명단 내보내기 (필터: 사용중만/학년/반). 시트 헤더와 동일한 열 구성 */
 function buildStudentsExport_(p, settings) {
   var list = sortStudents(readStudents_());
   if (p.activeOnly) list = filterActiveStudents(list, currentSchoolYear_(settings));
@@ -121,8 +128,10 @@ function buildStudentsExport_(p, settings) {
   return [{ name: '학생', headers: HEADERS.STUDENTS.slice(), rows: rows, widths: _STUDENT_WIDTHS }, _CODE_TABLE_SHEET];
 }
 
+// 학생 시트 열 너비(px). HEADERS.STUDENTS 순서와 1:1 대응
 var _STUDENT_WIDTHS = [70, 55, 55, 100, 100, 140, 140, 170, 280, 230, 140, 95, 80];
 
+/** 빈 학생 업로드 양식: 빈 학생 시트 + 코드표 + 작성안내 */
 function buildTemplateExport_() {
   return [
     { name: '학생', headers: HEADERS.STUDENTS.slice(), rows: [], widths: _STUDENT_WIDTHS },
@@ -145,6 +154,7 @@ function buildTemplateExport_() {
   ];
 }
 
+/** 기간 판별 결과 내보내기: "해당학생" 시트(누가·왜) + "메뉴" 시트(급식별 코드) */
 function buildResultExport_(start, end, settings) {
   var mealTypes = managedMealTypes_(settings);
   var students = readActiveStudents_(settings);
@@ -170,6 +180,7 @@ function buildResultExport_(start, end, settings) {
   ];
 }
 
+/** 반별 목록 내보내기: 학급마다 시트 하나. 해당 학생이 없으면 안내 시트 1장 */
 function buildClassPrintExport_(p, settings) {
   if (!isValidDateStr(p.start) || !isValidDateStr(p.end)) throw new Error('기간 오류');
   var data = apiPrintDataInternal_(p, settings);
@@ -208,6 +219,7 @@ function apiPrintDataInternal_(p, settings) {
   return { classes: classes };
 }
 
+/** 한 달 급식 원본 내보내기 (급식 시트와 동일한 열 구성 + 코드표) */
 function buildMealsExport_(ym) {
   var range = monthRange(ym);
   var rows = readMealsInRange_(range.start, range.end, MEAL_TYPES).map(function (m) {

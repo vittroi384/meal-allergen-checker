@@ -1,6 +1,7 @@
 /**
  * 텔레그램 봇 채널 (무료). 담당자용. sendMessage API, 4096자 제한이라 분할 전송.
  */
+// 텔레그램 메시지 최대 4096자 — 여유를 두고 4000자에서 분할
 var _TG_MAX = 4000;
 
 var telegramChannel_ = {
@@ -9,6 +10,7 @@ var telegramChannel_ = {
   isEnabled: function (settings) {
     return settingBool_(settings, '채널_텔레그램') && hasSecret('TELEGRAM_BOT_TOKEN');
   },
+  /** 비활성 사유 (설정 화면 안내용). 활성 상태면 '' */
   disabledReason: function (settings) {
     if (!settingBool_(settings, '채널_텔레그램')) return '설정에서 꺼져 있음';
     if (!hasSecret('TELEGRAM_BOT_TOKEN')) return '봇 토큰 미입력';
@@ -20,6 +22,7 @@ var telegramChannel_ = {
       var token = getSecret('TELEGRAM_BOT_TOKEN');
       var text = (msg.subject ? msg.subject + '\n\n' : '') + (msg.text || '');
       var chunks = [];
+      // 긴 알림은 여러 통으로 분할 — 가급적 줄바꿈 경계에서 자르고, 적당한 위치가 없으면 그냥 4000자에서 자른다
       while (text.length > _TG_MAX) {
         var cut = text.lastIndexOf('\n', _TG_MAX);
         if (cut < _TG_MAX / 2) cut = _TG_MAX;

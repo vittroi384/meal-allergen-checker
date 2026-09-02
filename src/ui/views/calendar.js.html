@@ -5,12 +5,15 @@ App.views.calendar = {
   skeleton: 'calendar',
   render: function (el, r) {
     var h = App.h;
+    // 라우트 인자(#/calendar/yyyy-MM)가 유효하면 그 달, 아니면 이번 달
     var ym = /^\d{4}-\d{2}$/.test(r.arg) ? r.arg : App.today().slice(0, 7);
     return App.cached('month:' + ym, function () { return App.api('apiMonth', ym); }).then(function (m) {
+      // 이전·다음 달을 미리 받아 두어 달 이동이 즉시 뜨게 한다
       [App.addMonths(ym, -1), App.addMonths(ym, 1)].forEach(function (nm) { App.prefetch('month:' + nm, function () { return App.api('apiMonth', nm); }); });
       var byDate = {};
       m.days.forEach(function (d) { byDate[d.date] = d; });
       var lead = App.dow(m.start); // 일요일 시작: 0=일
+      // 셀 배열: 앞쪽 빈 칸(lead) + 실제 날짜 + 마지막 주 7칸 채우기 (null = 빈 칸)
       var cells = [];
       for (var i = 0; i < lead; i++) cells.push(null);
       var cur = m.start;
@@ -18,6 +21,7 @@ App.views.calendar = {
       while (cells.length % 7) cells.push(null);
       var p = ym.split('-');
       var todayStr = App.today();
+      // 상단 요약용 월 합계 (해당 학생은 연인원 기준)
       var totalAffected = 0, totalUnchecked = 0;
       m.days.forEach(function (d) { totalAffected += d.affectedCount; totalUnchecked += d.uncheckedCount; });
 
@@ -43,6 +47,7 @@ App.views.calendar = {
       App.$('#today').onclick = function () { App.go('calendar/' + todayStr.slice(0, 7)); };
       App.$('#pick').onchange = function (e) { if (e.target.value) App.go('calendar/' + e.target.value); };
       App.$('#dl').onclick = function (e) { App.downloadXlsx('month', { ym: ym }, e.currentTarget); };
+      // 날짜 칸 클릭 → 날짜 상세로 이동 (컨테이너 위임)
       App.on(el, 'click', function (e) {
         var cell = e.target.closest('[data-day]');
         if (cell) App.go('day/' + cell.dataset.day);
@@ -59,6 +64,8 @@ App.views.calendar = {
  * @param affected [{ student, items?: [{menu, reasons, matchedCodes, matchedKeywords}], text }]
  * @param opts { ctx: 상태 저장 키(화면·끼니별), noEdit: 카드 클릭 비활성 }
  */
+// 반 그룹 전역 상태 — students: 행번호→학생(카드 클릭 수정용), data: ctx별 마지막 렌더 입력(전체 토글 재렌더용),
+// state: 그룹 열림 여부. 탭을 닫기 전까지 유지되도록 sessionStorage 에 저장 (실패해도 동작에는 지장 없음)
 App._aff = { students: {}, data: {}, state: (function () { try { return JSON.parse(sessionStorage.getItem('mac_aff') || '{}'); } catch (e) { return {}; } })() };
 App._aff.save = function () { try { sessionStorage.setItem('mac_aff', JSON.stringify(App._aff.state)); } catch (e) { /* 무시 */ } };
 
@@ -77,6 +84,7 @@ App.affectedListHtml = function (affected, emptyText, opts) {
     byKey[k].items.push(a);
     if (st._row) A.students[st._row] = st;
   });
+  // 열림 판단 우선순위: 개별 그룹 저장값 > "전체 펼치기/접기" 저장값 > 기본값(반 하나거나 5명 이하면 펼침)
   var defOpen = groups.length <= 1 || affected.length <= 5;
   var all = A.state['all:' + ctx];
   var isOpen = function (k) {
@@ -87,6 +95,7 @@ App.affectedListHtml = function (affected, emptyText, opts) {
   };
   var allOpen = groups.length > 0 && groups.every(function (g) { return isOpen(g.key); });
 
+  // 학생 카드 1장: 이름·원인 메뉴·알레르기 칩(원인이 된 코드·키워드는 강조). editable 이면 클릭 → 학생 수정
   var card = function (a) {
     var st = a.student;
     var hitCodes = [], hitKw = [];
@@ -122,6 +131,7 @@ if (!App._aff.bound) {
   App._aff.bound = true;
   document.addEventListener('click', function (e) {
     var A = App._aff;
+    // "전체 펼치기/접기": 개별 그룹 저장값을 지우고 all 상태만 남긴 뒤, 저장해 둔 렌더 입력으로 목록 전체를 다시 그린다
     var allBtn = e.target.closest('[data-aff-all]');
     if (allBtn) {
       var ctx = allBtn.dataset.affAll;
@@ -135,6 +145,7 @@ if (!App._aff.bound) {
       if (d && box) { var tmp = document.createElement('div'); tmp.innerHTML = App.affectedListHtml(d.affected, d.emptyText, d.opts); box.replaceWith(tmp.firstChild); }
       return;
     }
+    // 반 헤더 클릭: 해당 그룹만 토글하고 상태 저장, "전체" 버튼 라벨도 맞춰 갱신
     var head = e.target.closest('.aff-head');
     if (head) {
       var g = head.parentNode, gbox = g.closest('.affected-box');
@@ -147,6 +158,7 @@ if (!App._aff.bound) {
       if (btn) btn.textContent = App.$$('.aff-group', gbox).every(function (x) { return x.classList.contains('open'); }) ? '전체 접기' : '전체 펼치기';
       return;
     }
+    // 학생 카드 클릭 → 학생 수정 모달. 저장되면 학생 캐시 무효화 후 현재 화면 재렌더
     var item = e.target.closest('.affected-item.clickable');
     if (item) {
       var st = A.students[item.dataset.row];
@@ -155,6 +167,7 @@ if (!App._aff.bound) {
   });
 }
 
+/* 날짜 상세: 끼니별 메뉴 목록 + 해당 학생 + 확인 필요 알림 (apiDay). 메뉴 추가·일괄 검토·NEIS 되돌리기 진입점 */
 App.views.day = {
   title: '날짜 상세',
   skeleton: 'day',
@@ -162,6 +175,7 @@ App.views.day = {
     var h = App.h;
     var date = /^\d{4}-\d{2}-\d{2}$/.test(r.arg) ? r.arg : App.today();
     var self = this;
+    // 메뉴 변경 후 재조회: 급식 캐시를 무효화하고 같은 날짜를 다시 그린다
     var reload = function () { App.changed('meals'); return self.render(el, r); };
     return App.cached('day:' + date, function () { return App.api('apiDay', date); }).then(function (d) {
       var html = '<div class="page-head"><div><h2>' + h(d.label) + '</h2><div class="sub"><a href="#/calendar/' + date.slice(0, 7) + '">← 달력</a></div></div>' +
@@ -220,7 +234,9 @@ App.views.day = {
  * @param menus serializeMenu_ 배열 (_row 필수)
  * @param opts { ctx: 목록 식별자, reload: 변경 후 호출할 함수(Promise 가능) }
  */
+// 메뉴 목록 전역 상태 — rows: 행번호→메뉴(위임 핸들러에서 조회), ctx: 목록별 reload 콜백, bound: 문서 위임 1회 등록 플래그
 App._menu = { rows: {}, ctx: {}, bound: false };
+// 메뉴 행 1개 HTML — 인라인 삭제 확인을 취소할 때 행 복원에도 재사용
 App.menuRowHtml = function (m) {
   var h = App.h;
   var badge = m.needsCheck
@@ -240,6 +256,7 @@ App.menuListHtml = function (menus, opts) {
   menus.forEach(function (m) { if (m._row) App._menu.rows[m._row] = m; });
   return '<div class="menu-list" data-mctx="' + App.h(ctx) + '">' + menus.map(App.menuRowHtml).join('') + '</div>';
 };
+/* 메뉴 목록 클릭 위임(문서 1회): 행 클릭 / "···" 드롭다운 / 인라인 삭제 확인을 모두 여기서 처리 */
 if (!App._menu.bound) {
   App._menu.bound = true;
   document.addEventListener('click', function (e) {
@@ -252,6 +269,7 @@ if (!App._menu.bound) {
     if (!m) return;
     var h = App.h;
     var reload = function () { return Promise.resolve(ctx.reload()); };
+    // 확인 처리/취소: apiMarkMenuChecked — 진행 중엔 행을 pending 으로 잠가 중복 클릭 방지
     var check = function (on) {
       row.classList.add('pending');
       App.api('apiMarkMenuChecked', Number(m._row), on).then(function () { App.toast(on ? '확인 처리했습니다' : '확인을 취소했습니다', 'ok'); return reload(); })
@@ -267,14 +285,17 @@ if (!App._menu.bound) {
       } }]);
       return;
     }
+    // 인라인 삭제 확인의 [삭제] → apiDeleteMenu (해당 끼니는 서버에서 수동 보호 상태가 됨)
     if (b && b.dataset.delYes) {
       App.busy(b, true);
       App.api('apiDeleteMenu', Number(m._row)).then(function () { App.toast('삭제했습니다', 'ok'); return reload(); }).catch(function (err) { App.toast(err.message, 'danger'); App.busy(b, false); });
       return;
     }
+    // 인라인 삭제 확인의 [취소] → 원래 행 HTML 로 복원
     if (b && b.dataset.delNo) { row.outerHTML = App.menuRowHtml(m); return; }
     if (b) return;
     if (row.classList.contains('confirm-del') || row.classList.contains('pending')) return;
+    // 행 클릭: "확인 필요" 행은 확인 팝오버(없음 확인/수정/취소), 그 외 행은 바로 수정 모달
     if (m.needsCheck) {
       App.popover(row, '<b>' + h(m.name) + '</b><br>이 메뉴에 알레르기 유발 식품이 없는 것을 확인하셨나요?', [
         { label: '없음 확인', primary: true, onClick: function () { check(true); } },
@@ -302,6 +323,7 @@ App.reviewUnchecked = function (menus, ctx, onDone) {
     footer: '<button class="btn" data-close>닫기</button><span class="left"></span><button class="btn" id="rv-skip">건너뛰기</button><button class="btn" id="rv-edit">코드 입력</button><button class="btn primary" id="rv-ok">없음 확인</button>',
     onClose: function () { if (changed && onDone) onDone(); },
     onMount: function (el, api) {
+      // 현재 검토 대상 메뉴 1개 표시 + 진행률 갱신. 끝까지 가면 요약 토스트 후 닫기
       var show = function () {
         if (idx >= menus.length) {
           App.toast('검토 완료 — 확인 ' + done + '개, 건너뜀 ' + skipped + '개', 'ok');
@@ -368,6 +390,7 @@ App.menuEditor = function (m, onSaved) {
         var e = list.filter(function (x) { return norm(x.word) === norm(k) || x.synonyms.some(function (s) { return norm(s) === norm(k); }); })[0];
         return e ? [e.word].concat(e.synonyms, [k]) : [k];
       }
+      // 메뉴명에서 감지된 기타 알레르기 키워드를 표시 + 새 키워드를 관리 목록에 추가(apiAddKeyword)하는 입력칸
       function renderKeywordInfo(name) {
         var box = App.$('#me-kw', el);
         var list = App.state.boot.keywordList || [];
@@ -382,6 +405,7 @@ App.menuEditor = function (m, onSaved) {
             .catch(function (err) { App.toast(err.message, 'danger'); App.busy(b, false); });
         };
       }
+      // 저장 전 영향 미리보기: 체크된 코드·메뉴명 키워드로 서버와 같은 매칭 규칙을 클라이언트에서 재현해 해당 학생을 즉시 계산
       function renderPreview() {
         var box = App.$('#me-preview', el);
         var sel = App.$$('.codes-grid input:checked', el).map(function (i) { return Number(i.value); });
@@ -397,13 +421,16 @@ App.menuEditor = function (m, onSaved) {
         box.innerHTML = App.affectedListHtml(hits, sel.length || name ? '이 조건에 해당하는 학생이 없습니다' : '알레르기 항목을 체크하거나 메뉴명을 입력하세요', { ctx: 'menu-preview', noEdit: true });
         var scroll = App.$('.list-scroll', box); if (scroll) scroll.style.maxHeight = '240px';
       }
+      // 미리보기 대상 학생: 사용 중 + 현재 학년도만 (캐시 사용)
       App.cached('students', function () { return App.api('apiStudents'); }).then(function (data) {
         students = data.students.filter(function (s) { return s.active && (!s.schoolYear || s.schoolYear === data.schoolYear); });
         renderPreview();
       }).catch(function (e) { App.$('#me-preview', el).innerHTML = '<div class="notice danger small">' + h(e.message) + '</div>'; });
       App.on(el, 'change', function (e) { if (e.target.closest('.codes-grid')) renderPreview(); });
+      // 메뉴명 입력은 250ms 디바운스로 미리보기 갱신 (타이핑마다 전체 재계산 방지)
       var nameTimer;
       App.$('#me-name', el).addEventListener('input', function () { clearTimeout(nameTimer); nameTimer = setTimeout(renderPreview, 250); });
+      // 저장: apiSaveMenu — 성공 시 급식 캐시 무효화. 이 끼니는 서버에서 수동 보호로 표시된다
       App.$('#me-save', el).addEventListener('click', function () {
         var btn = this;
         var sel = App.$$('.codes-grid input:checked', el).map(function (i) { return Number(i.value); });

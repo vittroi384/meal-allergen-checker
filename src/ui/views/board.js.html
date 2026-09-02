@@ -9,6 +9,8 @@
 App.views.board = {
   title: '전광판',
   skeleton: 'dashboard',
+  // FLIP_MS 페이지 전환 주기, FADE_MS 크로스페이드 시간, REFRESH_MS 데이터 재조회 주기,
+  // SCALES 큰 것부터 시도하는 글자 배율 후보, MAX_ROWS 한 페이지 최대 반(행) 수 — 넘으면 줄이지 않고 페이지로 나눔
   FLIP_MS: 10000,
   FADE_MS: 1000,
   REFRESH_MS: 5 * 60 * 1000,
@@ -36,16 +38,19 @@ App.views.board = {
     self.alt = App.$('#board-flow-b');
     App.$('#board-exit').onclick = function () { App.go('dashboard'); };
 
+    // 키보드: Esc 나가기, →/스페이스 다음 페이지, ← 이전 페이지 (leave 에서 해제)
     self._keyHandler = function (e) {
       if (e.key === 'Escape') { App.go('dashboard'); return; }
       if (e.key === 'ArrowRight' || e.key === ' ') self.flip(1);
       if (e.key === 'ArrowLeft') self.flip(-1);
     };
     document.addEventListener('keydown', self._keyHandler);
+    // 창 크기 변경: 200ms 디바운스 후 배율 다시 측정 (연속 이벤트마다 재측정하면 무거움)
     var resizeT = null;
     self._onResize = function () { clearTimeout(resizeT); resizeT = setTimeout(function () { self.fit(); }, 200); };
     window.addEventListener('resize', self._onResize);
 
+    // 데이터 로드: 데모면 가상 데이터, 첫 로드는 캐시 허용, 주기 갱신(force)은 서버에서 새로 받아 캐시 갱신
     var load = function (force) {
       var p;
       if (self.demo) p = Promise.resolve(self.demoData(self.demo));
@@ -103,11 +108,13 @@ App.views.board = {
       todayByType: { '중식': { menus: menus, affected: affected, count: affected.length, uncheckedMenus: [], protected: false } }, failures: [] };
   },
 
+  /** 상단 오른쪽 시계 갱신 (15초 간격 타이머 + 머리글 다시 그린 직후) */
   tickClock: function () {
     var c = App.$('#board-clock');
     if (c) { var d = new Date(); c.textContent = App.pad(d.getHours()) + ':' + App.pad(d.getMinutes()); }
   },
 
+  /** 오른쪽 아래 구석 상태 표시줄: 데모 표시 또는 갱신 시각 · 페이지 위치 · 나가기 안내 */
   status: function () {
     var s = App.$('#board-status');
     if (!s) return;
@@ -196,6 +203,7 @@ App.views.board = {
       if (flow.children[i] !== elG) { flow.insertBefore(elG, flow.children[i] || null); changed = true; }
     });
     Object.keys(existing).forEach(function (k) { existing[k].remove(); changed = true; });
+    // 카드 폭 산정용 최장 이름 길이 (상한 6자 — 아주 긴 이름 하나가 모든 카드를 키우지 않게)
     var longest = 2;
     rows.forEach(function (g) { g.names.forEach(function (n) { if (n.length > longest) longest = n.length; }); });
     self.longestName = Math.min(longest, 6);
@@ -276,6 +284,10 @@ App.views.board = {
     if (pages.length > 1) self._flipTimer = setInterval(function () { self.flip(1); }, self.FLIP_MS);
   },
 
+  /**
+   * idx 페이지가 보이도록 레이어를 translateY 로 위로 밀고, clip-path 로 현재 페이지 구간만 남긴다
+   * (스크롤 대신 이 방식이어야 두 레이어를 겹쳐 놓고 크로스페이드할 수 있다)
+   */
   applyPage: function (flow, idx) {
     var top = this.pages[idx], next = this.pages[idx + 1];
     flow.style.transform = 'translateY(-' + top + 'px)';

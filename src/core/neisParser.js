@@ -9,6 +9,7 @@
  *   - 번호가 없는 요리는 괄호 없이 공백만 남음.
  */
 
+/** NEIS Open API 공통 주소 (뒤에 서비스명이 붙는다) */
 var NEIS_BASE_URL = 'https://open.neis.go.kr/hub/';
 
 /** NEIS 결과 코드 → 사용자용 설명 (응답 MESSAGE 가 있으면 그것을 우선 사용) */
@@ -120,6 +121,7 @@ function parseNeisEnvelope(json, serviceName) {
     result.message = '응답을 해석할 수 없습니다';
     return result;
   }
+  // 최상위에 RESULT 만 있으면 오류 또는 데이터 없음 응답 (정상 응답은 서비스명 키 아래 head/row 구조)
   if (json.RESULT) {
     result.code = json.RESULT.CODE || '';
     result.message = json.RESULT.MESSAGE || NEIS_RESULT_CODES[result.code] || '';
@@ -132,6 +134,7 @@ function parseNeisEnvelope(json, serviceName) {
     result.message = '알 수 없는 응답 형식';
     return result;
   }
+  // 배열 요소 중 head(총 건수·결과코드) 부분과 row(실제 데이터) 부분을 골라낸다
   var head = null, rows = [];
   arr.forEach(function (part) {
     if (part.head) head = part.head;

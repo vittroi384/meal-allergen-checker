@@ -1,3 +1,8 @@
+<!--
+  이관용 설정 내보내기 다이얼로그 (스프레드시트 메뉴에서 여는 독립 HtmlService 창 — SPA 와 무관).
+  서버가 템플릿 변수 json 으로 심어 준 설정 JSON 을 읽기 전용으로 보여 주고 클립보드 복사만 제공한다.
+  비밀값 자체는 JSON 에 포함되지 않는다 (설정 여부 목록만).
+-->
 <style>
   body { font-family: -apple-system, 'Malgun Gothic', sans-serif; margin: 0; padding: 12px; color: #111827; }
   p { margin: 0 0 8px; font-size: 13px; line-height: 1.5; }
@@ -11,6 +16,7 @@
 <textarea id="json" readonly><?= json ?></textarea>
 <button onclick="copy()">클립보드에 복사</button> <span id="msg"></span>
 <script>
+  // 클립보드 복사: 구형 execCommand 를 먼저 시도하고, 가능하면 navigator.clipboard 로 한 번 더 (다이얼로그 iframe 에서 둘 다 실패할 수 있어 이중 시도)
   function copy() {
     var ta = document.getElementById('json');
     ta.select();
@@ -19,6 +25,7 @@
     if (navigator.clipboard) navigator.clipboard.writeText(ta.value).then(function () { done(true); }, function () { done(ok); });
     else done(ok);
   }
+  // 복사 결과 안내 문구 표시
   function done(ok) {
     document.getElementById('msg').innerHTML = ok ? '<span class="ok">복사했습니다</span>' : '복사 실패 — 직접 선택해서 복사하세요';
   }

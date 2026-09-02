@@ -3,6 +3,7 @@
  * 내부 계산은 UTC 기준 Date 를 쓰므로 실행 환경의 시간대에 영향받지 않는다.
  */
 
+/** 'yyyy-MM-dd' 형식이면서 실제 존재하는 날짜인지 (예: '2026-02-30' 은 false) */
 function isValidDateStr(s) {
   if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
   var p = s.split('-').map(Number);
@@ -10,11 +11,13 @@ function isValidDateStr(s) {
   return d.getUTCFullYear() === p[0] && d.getUTCMonth() === p[1] - 1 && d.getUTCDate() === p[2];
 }
 
+// 'yyyy-MM-dd' → UTC 자정 Date 객체 (내부 계산 전용)
 function _dateStrToUtc(s) {
   var p = s.split('-').map(Number);
   return new Date(Date.UTC(p[0], p[1] - 1, p[2]));
 }
 
+// UTC Date 객체 → 'yyyy-MM-dd' (내부 계산 전용)
 function _utcToDateStr(d) {
   var y = d.getUTCFullYear();
   var m = String(d.getUTCMonth() + 1).padStart(2, '0');
@@ -33,6 +36,7 @@ function fromYmd(ymd) {
   return s.slice(0, 4) + '-' + s.slice(4, 6) + '-' + s.slice(6, 8);
 }
 
+/** dateStr 에 n일 더한 'yyyy-MM-dd' (n 이 음수면 빼기, 월·년 경계 자동 처리) */
 function addDays(dateStr, n) {
   var d = _dateStrToUtc(dateStr);
   d.setUTCDate(d.getUTCDate() + n);
@@ -44,6 +48,7 @@ function dayOfWeek(dateStr) {
   return _dateStrToUtc(dateStr).getUTCDay();
 }
 
+/** 토요일·일요일 여부 */
 function isWeekend(dateStr) {
   var dow = dayOfWeek(dateStr);
   return dow === 0 || dow === 6;
@@ -72,6 +77,7 @@ function addMonths(yearMonth, n) {
   return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
 }
 
+/** 'yyyy-MM-dd' → 'yyyy-MM' */
 function yearMonthOf(dateStr) {
   return dateStr.slice(0, 7);
 }
