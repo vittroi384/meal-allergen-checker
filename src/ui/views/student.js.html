@@ -41,7 +41,7 @@ App.views.student = {
         '<div class="sub"><a href="#/students">← 학생 목록</a> · ' + (teacherText ? '담임 ' + h(teacherText) + ' · ' : '') +
         (tags ? '<span class="tags" style="display:inline">' + tags + '</span>' : '<span class="muted">등록된 알레르기 없음</span>') + '</div></div>' +
         '<div class="actions"><button class="btn" id="prev">‹ 이전 달</button><button class="btn" id="today">이번 달</button><button class="btn" id="next">다음 달 ›</button><input type="month" id="pick" value="' + ym + '">' +
-        '<button class="btn" id="edit">학생 수정</button></div></div>' +
+        '<button class="btn" id="edit">학생 수정</button><button class="btn primary" id="notice">📄 통신문 인쇄</button></div></div>' +
         '<div class="grid cols-3" style="margin-bottom:16px">' +
         '<div class="card"><div class="small muted">' + Number(p[1]) + '월 급식일</div><div style="font-size:28px;font-weight:800">' + m.mealDates.length + '<span style="font-size:14px;font-weight:600"> 일</span></div><div class="small muted">관리 끼니: ' + h(m.mealTypes.join('·')) + '</div></div>' +
         '<div class="card"><div class="small muted">못 먹는 날</div><div style="font-size:28px;font-weight:800;color:' + (m.days.length ? 'var(--danger)' : '#16a34a') + '">' + m.days.length + '<span style="font-size:14px;font-weight:600"> 일</span></div><div class="small muted">' + (m.days.length ? '메뉴 ' + itemCount + '개' : '이번 달 해당 없음 🎉') + '</div></div>' +
@@ -86,6 +86,7 @@ App.views.student = {
       App.$('#next').onclick = function () { goYm(App.addMonths(ym, 1)); };
       App.$('#today').onclick = function () { goYm(todayStr.slice(0, 7)); };
       App.$('#pick').onchange = function (e) { if (e.target.value) goYm(e.target.value); };
+      App.$('#notice').onclick = function () { App.go('student-print/' + row + '?ym=' + ym); };
       App.$('#edit').onclick = function () {
         App.studentEditor(st, st.schoolYear || App.state.boot.schoolYear, function () { App.changed('students'); App.rerender(); });
       };

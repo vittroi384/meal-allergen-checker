@@ -1,0 +1,101 @@
+<script>
+/* 학생별 통신문 인쇄: 학생 1명의 한 달 달력(못 먹는 메뉴 표시) + 날짜별 표를 A4 세로 1장 안내문으로. #/student-print/{행}?ym=yyyy-MM
+   화면의 A4 미리보기(.print-doc)가 곧 인쇄 결과. 인사말·맺음말은 편집 가능하고 브라우저(localStorage)에 기억된다. */
+App.views['student-print'] = {
+  title: '통신문 인쇄',
+  nav: 'students',
+  skeleton: 'calendar',
+  render: function (el, r) {
+    var h = App.h;
+    var row = Number(r.arg);
+    if (!row) { App.go('students'); return Promise.resolve(); }
+    var ym = /^\d{4}-\d{2}$/.test(r.params.ym || '') ? r.params.ym : App.today().slice(0, 7);
+    var TEXT_KEY = 'mac_notice_text';
+    var defaults = {
+      intro: '학부모님 안녕하십니까. 자녀의 알레르기 정보와 이번 달 학교 급식 식단을 대조한 결과를 아래와 같이 안내드립니다. 표시된 날짜에는 해당 메뉴를 먹지 않도록 가정에서도 지도 부탁드립니다.',
+      outro: '식단은 학교 사정에 따라 변경될 수 있으며, 변경 시 다시 안내드리겠습니다. 궁금한 점은 담임 선생님 또는 급식 담당자에게 문의해 주세요.',
+    };
+    var text = (function () { try { return Object.assign({}, defaults, JSON.parse(localStorage.getItem(TEXT_KEY) || '{}')); } catch (e) { return Object.assign({}, defaults); } })();
+    var saveText = function () { try { localStorage.setItem(TEXT_KEY, JSON.stringify(text)); } catch (e) { /* 무시 */ } };
+
+    // @page: A4 세로, 페이지 번호 없음(통신문은 보통 1장)
+    var ps = document.getElementById('print-page-style');
+    if (!ps) { ps = document.createElement('style'); ps.id = 'print-page-style'; document.head.appendChild(ps); }
+    ps.textContent = '@page { size: A4 portrait; margin: 14mm 12mm 14mm; }';
+
+    return App.cached('studentMonth:' + row + ':' + ym, function () { return App.api('apiStudentMonth', row, ym); }).then(function (m) {
+      var st = m.student;
+      var school = (App.state.boot && App.state.boot.settings['학교명']) || '';
+      var p = ym.split('-');
+      var monthLabel = p[0] + '년 ' + Number(p[1]) + '월';
+      var byDate = {};
+      m.days.forEach(function (d) { byDate[d.date] = d; });
+      var mealDates = {};
+      m.mealDates.forEach(function (d) { mealDates[d] = true; });
+      var lead = App.dow(m.start);
+      var cells = [];
+      for (var i = 0; i < lead; i++) cells.push(null);
+      var cur = m.start;
+      while (cur <= m.end) { cells.push(cur); cur = App.addDays(cur, 1); }
+      while (cells.length % 7) cells.push(null);
+      var weeks = [];
+      for (var w = 0; w < cells.length; w += 7) weeks.push(cells.slice(w, w + 7));
+      var allergyText = (st.codeNames || []).map(function (n, i) { return n + '(' + st.codes[i] + ')'; }).concat(st.keywords || []).join(', ') || '등록된 알레르기 없음';
+      var teacherText = [st.teacherName, st.teacherPhone].filter(Boolean).join(' ');
+
+      // 달력 칸: 못 먹는 날 = 연한 빨강 + 메뉴(원인) 전부, 급식 있는 날 = 빈 칸, 주말·급식 없음 = 회색
+      var cellHtml = function (d) {
+        if (!d) return '<td class="dim"></td>';
+        var day = byDate[d];
+        var dw = App.dow(d);
+        var hasMeal = !!mealDates[d];
+        var lines = [];
+        if (day) day.meals.forEach(function (mm) { mm.items.forEach(function (it) { lines.push((m.mealTypes.length > 1 ? '[' + mm.mealType.charAt(0) + '] ' : '') + it.text); }); });
+        return '<td class="' + (day ? 'hit' : !hasMeal ? 'dim' : '') + (dw === 0 ? ' sun' : dw === 6 ? ' sat' : '') + '"><div class="d">' + Number(d.slice(8)) + '</div>' +
+          (lines.length ? '<div class="m">' + lines.map(h).join('<br>') : (!hasMeal && dw !== 0 && dw !== 6 ? '<div class="m none">급식 없음' : '<div class="m">')) + '</div></td>';
+      };
+      var doc =
+        '<div class="print-doc notice-doc">' +
+        '<div class="pd-head"><div class="pd-title">' + h(school ? school + ' ' : '') + monthLabel + ' 급식 알레르기 안내문</div>' +
+        '<div class="pd-sub">' + h(st.grade + '학년 ' + st.classNo + '반 ' + st.name) + ' 학생 학부모님께' + (teacherText ? ' · 담임 ' + h(teacherText) : '') + '</div></div>' +
+        '<p class="nd-p">' + h(text.intro) + '</p>' +
+        '<table class="nd-info"><tr><th>학생</th><td>' + h(st.grade + '학년 ' + st.classNo + '반 ' + st.name) + (st.note ? ' <span class="muted">(' + h(st.note) + ')</span>' : '') + '</td><th>알레르기</th><td>' + h(allergyText) + '</td></tr>' +
+        '<tr><th>대상 기간</th><td>' + h(monthLabel) + ' (급식일 ' + m.mealDates.length + '일 · 관리 끼니 ' + h(m.mealTypes.join('·')) + ')</td><th>못 먹는 날</th><td><b>' + m.days.length + '일</b></td></tr></table>' +
+        '<table class="pd-cal"><thead><tr>' + ['일', '월', '화', '수', '목', '금', '토'].map(function (d, i) { return '<th class="' + (i === 0 ? 'sun' : i === 6 ? 'sat' : '') + '">' + d + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        weeks.map(function (wk) { return '<tr>' + wk.map(cellHtml).join('') + '</tr>'; }).join('') + '</tbody></table>' +
+        '<div class="nd-legend"><span class="sw hit"></span> 못 먹는 메뉴가 있는 날 (메뉴(원인)) &nbsp; <span class="sw dim"></span> 주말·급식 없음</div>' +
+        (m.days.length ?
+          '<table class="pd-table nd-list"><colgroup><col style="width:24mm"><col style="width:14mm"><col></colgroup><thead><tr><th>날짜</th><th>끼니</th><th>못 먹는 메뉴 (원인)</th></tr></thead><tbody>' +
+          m.days.map(function (d) { return d.meals.map(function (mm, i) { return '<tr>' + (i === 0 ? '<td class="c" rowspan="' + d.meals.length + '">' + h(App.fmtDate(d.date)) + '</td>' : '') + '<td class="c">' + h(mm.mealType) + '</td><td class="menu">' + h(mm.text) + '</td></tr>'; }).join(''); }).join('') +
+          '</tbody><tfoot><tr><td colspan="3"></td></tr></tfoot></table>'
+          : '<p class="nd-p nd-ok">이번 달에는 해당 학생이 못 먹는 메뉴가 없습니다.</p>') +
+        '<p class="nd-p">' + h(text.outro) + '</p>' +
+        '<div class="nd-foot"><div>' + h(App.fmtDateLong(App.today())) + '</div><div class="nd-school">' + h(school || '') + '</div></div>' +
+        '</div>';
+
+      el.innerHTML =
+        '<div class="page-head no-print"><div><h2>통신문 인쇄 — ' + h(st.label) + '</h2><div class="sub"><a href="#/student/' + row + '?ym=' + ym + '">← 학생별 현황</a> · ' + h(monthLabel) + ' · 아래 미리보기가 A4 세로 인쇄 결과와 같습니다</div></div>' +
+        '<div class="actions"><button class="btn" id="prev">‹ 이전 달</button><button class="btn" id="next">다음 달 ›</button><input type="month" id="pick" value="' + ym + '"><button class="btn primary" id="p-print">🖨 인쇄</button></div></div>' +
+        '<div class="card no-print"><div class="form-grid">' +
+        '<div class="field"><label>인사말</label><textarea id="t-intro" rows="3">' + h(text.intro) + '</textarea></div>' +
+        '<div class="field"><label>맺음말</label><textarea id="t-outro" rows="3">' + h(text.outro) + '</textarea></div></div>' +
+        '<div class="small muted" style="margin-top:6px">문구는 이 브라우저에 저장되어 다음 학생에도 그대로 쓰입니다. <button type="button" class="btn sm ghost" id="t-reset">기본 문구로</button></div>' +
+        '<div class="notice info small" style="margin-top:10px">인쇄 대화상자에서 <b>"머리글 및 바닥글" 끄기</b>, <b>"배경 그래픽" 켜기</b>, 용지 <b>A4 세로</b>. 반드시 이 🖨 인쇄 버튼으로 (Ctrl+P 는 화면이 잘려 나옴).</div></div>' +
+        '<div id="p-body">' + doc + '</div>';
+
+      var goYm = function (nm) { App.go('student-print/' + row + '?ym=' + nm); };
+      App.$('#prev').onclick = function () { goYm(App.addMonths(ym, -1)); };
+      App.$('#next').onclick = function () { goYm(App.addMonths(ym, 1)); };
+      App.$('#pick').onchange = function (e) { if (e.target.value) goYm(e.target.value); };
+      App.$('#p-print').onclick = function () { window.print(); };
+      // 문구 편집: 입력 즉시 미리보기 반영 + 저장
+      var bind = function (id, key, sel) {
+        App.$(id).oninput = function (e) { text[key] = e.target.value; App.$$(sel, el).forEach(function (n) { n.textContent = text[key]; }); saveText(); };
+      };
+      bind('#t-intro', 'intro', '.notice-doc .nd-p:first-of-type');
+      bind('#t-outro', 'outro', '.notice-doc .nd-p:last-of-type');
+      App.$('#t-reset').onclick = function () { text = Object.assign({}, defaults); saveText(); App.rerender(); };
+    });
+  },
+};
+</script>

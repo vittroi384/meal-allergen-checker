@@ -6,7 +6,8 @@ App.views.students = {
     var h = App.h;
     var self = this;
     // 필터·정렬은 뷰 객체에 저장해 화면을 떠났다 돌아와도 유지된다
-    var filter = self._filter || { q: '', grade: '', classNo: '', activeOnly: true };
+    var filter = self._filter || { q: '', grade: '', classNo: '', activeOnly: true, codes: [], kws: [] };
+    filter.codes = filter.codes || []; filter.kws = filter.kws || [];
     self._filter = filter;
     var sort = self._sort || { key: 'class', dir: 1 };
     self._sort = sort;
@@ -15,7 +16,7 @@ App.views.students = {
       var grades = {}, classes = {};
       all.forEach(function (s) { grades[s.grade] = true; if (!filter.grade || Number(filter.grade) === s.grade) classes[s.classNo] = true; });
       // 필터 적용: 현재 학년도 사용 중 / 학년 / 반 / 검색어(공백 무시, 이름·알레르기·담임·연락처 통합 검색)
-      var list = all.filter(function (s) {
+      var listBase = all.filter(function (s) {
         if (filter.activeOnly && (!s.active || (s.schoolYear && s.schoolYear !== data.schoolYear))) return false;
         if (filter.grade && s.grade !== Number(filter.grade)) return false;
         if (filter.classNo && s.classNo !== Number(filter.classNo)) return false;
@@ -26,6 +27,12 @@ App.views.students = {
         }
         return true;
       });
+      // 알레르기 칩 필터(합집합): 고른 코드 중 하나라도 있거나 고른 기타 키워드 중 하나라도 있는 학생
+      var normKw = function (k) { return String(k || '').replace(/\s+/g, '').toLowerCase(); };
+      var chipOn = filter.codes.length || filter.kws.length;
+      var list = chipOn ? listBase.filter(function (s) {
+        return s.codes.some(function (c) { return filter.codes.indexOf(c) >= 0; }) || s.keywords.some(function (k) { return filter.kws.indexOf(normKw(k)) >= 0; });
+      }) : listBase;
       // 정렬
       var notifyOrder = { '없음': 0, '이메일': 1, '문자': 2 };
       var byClass = function (a, b) { return (a.grade - b.grade) || (a.classNo - b.classNo) || a.name.localeCompare(b.name, 'ko'); };
@@ -44,20 +51,21 @@ App.views.students = {
         return '<th class="sortable ' + (cls || '') + '" data-sort="' + key + '" title="클릭하여 정렬">' + label + '<span class="arrow">' + arrow + '</span></th>';
       };
       var conflicts = data.teacherConflicts || [];
-      // 알레르기별 인원 칩 (표시 중인 학생 기준). 칩 클릭 = 그 이름으로 검색, 다시 클릭 = 해제
-      var codeCnt = {}, kwCnt = {};
-      list.forEach(function (s) {
+      // 알레르기별 인원 칩 — 검색·학년·반 필터까지 적용한 학생(listBase) 기준이라 칩을 골라도 다른 칩은 그대로 남는다.
+      // 여러 개 선택 가능(합집합), 다시 누르면 해제. 기타 키워드는 공백·대소문자 무시로 묶음
+      var codeCnt = {}, kwCnt = {}, kwLabel = {};
+      listBase.forEach(function (s) {
         s.codes.forEach(function (c) { codeCnt[c] = (codeCnt[c] || 0) + 1; });
-        s.keywords.forEach(function (k) { kwCnt[k] = (kwCnt[k] || 0) + 1; });
+        s.keywords.forEach(function (k) { var nk = normKw(k); kwCnt[nk] = (kwCnt[nk] || 0) + 1; if (!kwLabel[nk]) kwLabel[nk] = k; });
       });
-      var chip = function (label, n, cls) {
-        var on = filter.q.replace(/\s+/g, '') === label.replace(/\s+/g, '');
-        return '<button type="button" class="stat-chip' + (cls ? ' ' + cls : '') + (on ? ' on' : '') + '" data-q="' + h(label) + '" title="' + (on ? '검색 해제' : '이 알레르기 학생만 보기') + '">' + h(label) + '<b>' + n + '</b></button>';
+      var chip = function (attr, val, label, n, on, cls) {
+        return '<button type="button" class="stat-chip' + (cls ? ' ' + cls : '') + (on ? ' on' : '') + '" data-' + attr + '="' + h(val) + '" title="' + (on ? '선택 해제' : '이 알레르기 학생 보기 (여러 개 고르면 합집합)') + '">' + h(label) + '<b>' + n + '</b></button>';
       };
-      var codeChips = Object.keys(codeCnt).sort(function (a, b) { return codeCnt[b] - codeCnt[a] || a - b; }).map(function (c) { return chip(App.allergenName(c), codeCnt[c]); });
-      var kwChips = Object.keys(kwCnt).sort(function (a, b) { return kwCnt[b] - kwCnt[a] || a.localeCompare(b, 'ko'); }).map(function (k) { return chip(k, kwCnt[k], 'kw'); });
+      var codeChips = Object.keys(codeCnt).sort(function (a, b) { return codeCnt[b] - codeCnt[a] || a - b; }).map(function (c) { return chip('code', c, App.allergenName(c), codeCnt[c], filter.codes.indexOf(Number(c)) >= 0); });
+      var kwChips = Object.keys(kwCnt).sort(function (a, b) { return kwCnt[b] - kwCnt[a] || kwLabel[a].localeCompare(kwLabel[b], 'ko'); }).map(function (k) { return chip('kw', k, kwLabel[k], kwCnt[k], filter.kws.indexOf(k) >= 0, 'kw'); });
       var statChipsHtml = (codeChips.length || kwChips.length)
-        ? '<div class="stat-chips"><span class="lbl">알레르기별</span>' + codeChips.join('') + (kwChips.length ? '<span class="sep"></span><span class="lbl">기타</span>' + kwChips.join('') : '') + '</div>'
+        ? '<div class="stat-chips"><span class="lbl">알레르기별</span>' + codeChips.join('') + (kwChips.length ? '<span class="sep"></span><span class="lbl">기타</span>' + kwChips.join('') : '') +
+          (chipOn ? '<button type="button" class="btn sm ghost" data-chip-clear="1" style="margin-left:4px">선택 해제 (' + list.length + '명)</button>' : '') + '</div>'
         : '';
 
       el.innerHTML =
@@ -113,7 +121,9 @@ App.views.students = {
         }
         var b = e.target.closest('button');
         if (!b || !el.contains(b)) return;
-        if (b.dataset.q !== undefined) { filter.q = b.classList.contains('on') ? '' : b.dataset.q; return rerender(); }
+        if (b.dataset.code !== undefined) { var c = Number(b.dataset.code), ci = filter.codes.indexOf(c); if (ci >= 0) filter.codes.splice(ci, 1); else filter.codes.push(c); return rerender(); }
+        if (b.dataset.kw !== undefined) { var ki = filter.kws.indexOf(b.dataset.kw); if (ki >= 0) filter.kws.splice(ki, 1); else filter.kws.push(b.dataset.kw); return rerender(); }
+        if (b.dataset.chipClear) { filter.codes = []; filter.kws = []; return rerender(); }
         if (b.dataset.edit) App.studentEditor(byRow[b.dataset.edit], data.schoolYear, reload);
         if (b.dataset.toggle) {
           var s = byRow[b.dataset.toggle];

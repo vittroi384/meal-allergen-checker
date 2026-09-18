@@ -418,6 +418,29 @@
   .pd-page { break-after: page; page-break-after: always; }
   .pd-page:last-child { break-after: auto; page-break-after: auto; }
   .print-doc .empty { padding: 30px 0; text-align: center; color: #666; }
+  /* 통신문(학생별 안내문): 정보 표 + 달력 표 + 날짜별 표. 못 먹는 날은 연한 빨강(배경 그래픽 꺼도 굵은 테두리로 구분) */
+  .notice-doc { font-size: 10.5pt; line-height: 1.5; }
+  .nd-p { margin: 8px 0 10px; text-align: justify; word-break: keep-all; }
+  .nd-p.nd-ok { text-align: center; padding: 10px; border: 1px dashed #999; }
+  .nd-info { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: 9.5pt; }
+  .nd-info th, .nd-info td { border: 1px solid #999; padding: 4px 8px; text-align: left; white-space: normal; }
+  .nd-info th { background: #eee; width: 20mm; font-weight: 700; white-space: nowrap; }
+  .pd-cal { width: 100%; table-layout: fixed; border-collapse: collapse; margin: 4px 0 4px; }
+  .pd-cal th { border: 1px solid #999; background: #eee; font-size: 9pt; padding: 3px 0; text-align: center; font-weight: 700; }
+  .pd-cal th.sun { color: #b91c1c; } .pd-cal th.sat { color: #1d4ed8; }
+  .pd-cal td { border: 1px solid #999; height: 19mm; vertical-align: top; padding: 2px 4px 3px; font-size: 8.5pt; line-height: 1.25; white-space: normal; word-break: keep-all; }
+  .pd-cal td .d { font-weight: 700; font-size: 9pt; }
+  .pd-cal td.sun .d { color: #b91c1c; } .pd-cal td.sat .d { color: #1d4ed8; }
+  .pd-cal td .m { color: #7f1d1d; font-weight: 600; }
+  .pd-cal td .m.none { color: #999; font-weight: 500; font-size: 8pt; }
+  .pd-cal td.hit { background: #fde2e2; border: 1.5px solid #b91c1c; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .pd-cal td.dim { background: #f3f4f6; color: #999; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .nd-legend { font-size: 8.5pt; color: #444; margin: 2px 0 10px; }
+  .nd-legend .sw { display: inline-block; width: 10px; height: 10px; border: 1px solid #999; vertical-align: -1px; margin-right: 3px; }
+  .nd-legend .sw.hit { background: #fde2e2; border-color: #b91c1c; } .nd-legend .sw.dim { background: #f3f4f6; }
+  .nd-list { margin-bottom: 10px; font-size: 9.5pt; }
+  .nd-foot { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 16px; font-size: 10pt; }
+  .nd-foot .nd-school { font-size: 13pt; font-weight: 800; letter-spacing: 2px; }
   /* ---------- 전광판 모드 (#/board) ---------- */
   body.board-mode { background: #0b1220; }
   body.board-mode .topbar, body.board-mode #toast-root { display: none !important; }
@@ -477,6 +500,9 @@
     th { position: static; background: #f3f4f6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     th, td { padding: 5px 8px; border: 1px solid #d1d5db; white-space: nowrap; word-break: keep-all; }
     td.wrap { white-space: normal; max-width: none; }
+    .pd-cal td, .nd-info td, .nd-info th { white-space: normal !important; }
+    .pd-cal td { padding: 2px 4px 3px; }
+    .pd-cal td.hit, .pd-cal td.dim, .nd-info th, .pd-cal th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     table { border-collapse: collapse; width: 100%; }
   }
 </style>
