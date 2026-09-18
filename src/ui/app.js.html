@@ -222,8 +222,8 @@ var App = (function () {
   }
   /** 데이터 변경 종류별 무효화 */
   var INVALIDATE = {
-    meals: ['dashboard', 'month:', 'day:', 'meals:'],
-    students: ['dashboard', 'month:', 'day:', 'students', 'meals:'],
+    meals: ['dashboard', 'month:', 'day:', 'meals:', 'studentMonth:'],
+    students: ['dashboard', 'month:', 'day:', 'students', 'meals:', 'studentMonth:'],
   };
   function changed(kind) { invalidate(INVALIDATE[kind] || null); }
   function prefetch(key, loader) { if (!Object.prototype.hasOwnProperty.call(dataCache, key)) setTimeout(function () { cached(key, loader).catch(function () {}); }, 300); }
@@ -292,8 +292,10 @@ var App = (function () {
     if (!$('#main')) renderLayout();
     var r = parseHash();
     state.route = r;
-    $$('[data-nav]').forEach(function (a) { a.classList.toggle('active', a.dataset.nav === r.name); });
     var view = views[r.name] || views.dashboard;
+    // 내비 강조: 뷰가 nav 를 지정하면 그 탭(예: 학생별 현황 → 학생), 아니면 라우트 이름
+    var navKey = view.nav || r.name;
+    $$('[data-nav]').forEach(function (a) { a.classList.toggle('active', a.dataset.nav === navKey); });
     // 떠나는 화면의 정리 훅 (타이머·전역 리스너·body 클래스 등). 전광판처럼 화면 밖 상태를 만드는 뷰가 구현한다
     if (state.view && state.view !== view && typeof state.view.leave === 'function') {
       try { state.view.leave(); } catch (e) { /* 무시 */ }

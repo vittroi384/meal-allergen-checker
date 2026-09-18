@@ -44,6 +44,21 @@ App.views.students = {
         return '<th class="sortable ' + (cls || '') + '" data-sort="' + key + '" title="클릭하여 정렬">' + label + '<span class="arrow">' + arrow + '</span></th>';
       };
       var conflicts = data.teacherConflicts || [];
+      // 알레르기별 인원 칩 (표시 중인 학생 기준). 칩 클릭 = 그 이름으로 검색, 다시 클릭 = 해제
+      var codeCnt = {}, kwCnt = {};
+      list.forEach(function (s) {
+        s.codes.forEach(function (c) { codeCnt[c] = (codeCnt[c] || 0) + 1; });
+        s.keywords.forEach(function (k) { kwCnt[k] = (kwCnt[k] || 0) + 1; });
+      });
+      var chip = function (label, n, cls) {
+        var on = filter.q.replace(/\s+/g, '') === label.replace(/\s+/g, '');
+        return '<button type="button" class="stat-chip' + (cls ? ' ' + cls : '') + (on ? ' on' : '') + '" data-q="' + h(label) + '" title="' + (on ? '검색 해제' : '이 알레르기 학생만 보기') + '">' + h(label) + '<b>' + n + '</b></button>';
+      };
+      var codeChips = Object.keys(codeCnt).sort(function (a, b) { return codeCnt[b] - codeCnt[a] || a - b; }).map(function (c) { return chip(App.allergenName(c), codeCnt[c]); });
+      var kwChips = Object.keys(kwCnt).sort(function (a, b) { return kwCnt[b] - kwCnt[a] || a.localeCompare(b, 'ko'); }).map(function (k) { return chip(k, kwCnt[k], 'kw'); });
+      var statChipsHtml = (codeChips.length || kwChips.length)
+        ? '<div class="stat-chips"><span class="lbl">알레르기별</span>' + codeChips.join('') + (kwChips.length ? '<span class="sep"></span><span class="lbl">기타</span>' + kwChips.join('') : '') + '</div>'
+        : '';
 
       el.innerHTML =
         '<div class="page-head"><div><h2>학생 관리</h2><div class="sub">' + data.schoolYear + '학년도 · 전체 ' + all.length + '명 · 표시 <b>' + list.length + '명</b></div></div>' +
@@ -55,6 +70,7 @@ App.views.students = {
         '<select id="class"><option value="">전체 반</option>' + Object.keys(classes).sort(function (a, b) { return a - b; }).map(function (c) { return '<option value="' + c + '"' + (String(filter.classNo) === c ? ' selected' : '') + '>' + c + '반</option>'; }).join('') + '</select>' +
         '<label class="check"><input type="checkbox" id="active-only"' + (filter.activeOnly ? ' checked' : '') + '> 현재 학년도 사용 중만</label>' +
         '<span class="badge blue" style="margin-left:auto">' + list.length + '명</span></div>' +
+        statChipsHtml +
         // 열 우선순위: 고정(학년-반 70, 이름 90, 담임 150, 학부모알림 160, 사용 80, 작업 130) · 알레르기 칩 3개(230) · 기타 칩 1개(76) · 비고 = 나머지 전부
         // 고정 합계 986px + 비고 ≥ 260px → 표 최소 1246px. 1366px 노트북의 표 가용 폭 ≈ 1262px (본문 1400 여백·카드 패딩·스크롤바 제외) → 가로 스크롤 없음
         '<div class="table-wrap fit tall uniform"><table style="min-width:1246px"><colgroup><col style="width:70px"><col style="width:90px"><col style="width:150px"><col style="width:230px"><col style="width:76px"><col style="width:160px"><col><col style="width:80px"><col style="width:130px"></colgroup>' +
@@ -63,7 +79,7 @@ App.views.students = {
           var tconf = s.teacher && s.teacher.conflict;
           var contact = s.parentNotify === '문자' ? s.parentPhone : s.parentEmail;
           var teacherText = [s.teacherName, s.teacherPhone].filter(Boolean).join(' ');
-          return '<tr' + (s.active ? '' : ' style="opacity:.55"') + '><td class="center">' + s.grade + '-' + s.classNo + (s.schoolYear && s.schoolYear !== data.schoolYear ? ' <span class="badge gray tiny">' + s.schoolYear + '</span>' : '') + '</td><td class="name" title="' + h(s.name) + '">' + h(s.name) + '</td>' +
+          return '<tr' + (s.active ? '' : ' style="opacity:.55"') + '><td class="center">' + s.grade + '-' + s.classNo + (s.schoolYear && s.schoolYear !== data.schoolYear ? ' <span class="badge gray tiny">' + s.schoolYear + '</span>' : '') + '</td><td class="name" title="' + h(s.name) + ' — 클릭하면 월별 현황"><a class="stu-link" href="#/student/' + s._row + '">' + h(s.name) + '</a></td>' +
             '<td title="' + h(teacherText) + '">' + (teacherText ? h(s.teacherName || '(이름 없음)') + (s.teacherPhone ? '<span class="sub-contact">' + h(s.teacherPhone) + '</span>' : '') + (tconf ? ' <span class="badge warn tiny" title="같은 반의 담임 정보가 서로 다릅니다">불일치</span>' : '') : '<span class="muted">미등록</span>') + '</td>' +
             '<td class="chips" title="' + h(s.codeNames.join(', ')) + '">' + App.codeTags(s.codes, null, 3) + '</td><td class="chips" title="' + h(s.keywords.join(', ')) + '">' + s.keywords.map(function (k) { return '<span class="tag kw">' + h(k) + '</span>'; }).join('') + '</td>' +
             '<td title="' + h(contact) + '">' + (s.parentNotify === '없음' ? '<span class="badge fixed gray-text">없음</span>' : '<span class="badge blue fixed">' + h(s.parentNotify) + '</span><span class="sub-contact">' + h(contact) + '</span>') + '</td>' +
@@ -97,6 +113,7 @@ App.views.students = {
         }
         var b = e.target.closest('button');
         if (!b || !el.contains(b)) return;
+        if (b.dataset.q !== undefined) { filter.q = b.classList.contains('on') ? '' : b.dataset.q; return rerender(); }
         if (b.dataset.edit) App.studentEditor(byRow[b.dataset.edit], data.schoolYear, reload);
         if (b.dataset.toggle) {
           var s = byRow[b.dataset.toggle];

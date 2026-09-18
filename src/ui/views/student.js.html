@@ -1,0 +1,100 @@
+<script>
+/* 학생별 월간 현황: 학생 1명 기준 달력(원인 메뉴 표시) + 날짜별 표. #/student/{행}?ym=yyyy-MM */
+App.views.student = {
+  title: '학생별 현황',
+  nav: 'students',
+  skeleton: 'calendar',
+  render: function (el, r) {
+    var h = App.h;
+    var row = Number(r.arg);
+    if (!row) { App.go('students'); return Promise.resolve(); }
+    var ym = /^\d{4}-\d{2}$/.test(r.params.ym || '') ? r.params.ym : App.today().slice(0, 7);
+    var goYm = function (nm) { App.go('student/' + row + '?ym=' + nm); };
+    var load = function (m) { return App.api('apiStudentMonth', row, m); };
+    return App.cached('studentMonth:' + row + ':' + ym, function () { return load(ym); }).then(function (m) {
+      // 이전·다음 달 미리 받기 (달력 화면과 같은 방식)
+      [App.addMonths(ym, -1), App.addMonths(ym, 1)].forEach(function (nm) { App.prefetch('studentMonth:' + row + ':' + nm, function () { return load(nm); }); });
+      var st = m.student;
+      var byDate = {};
+      m.days.forEach(function (d) { byDate[d.date] = d; });
+      var mealDates = {};
+      m.mealDates.forEach(function (d) { mealDates[d] = true; });
+      var lead = App.dow(m.start);
+      var cells = [];
+      for (var i = 0; i < lead; i++) cells.push(null);
+      var cur = m.start;
+      while (cur <= m.end) { cells.push(cur); cur = App.addDays(cur, 1); }
+      while (cells.length % 7) cells.push(null);
+      var p = ym.split('-');
+      var todayStr = App.today();
+      // 요약: 원인 메뉴 수(연인원 아님, 메뉴 항목 수)와 가장 잦은 원인
+      var itemCount = 0, reasonCount = {};
+      m.days.forEach(function (d) { d.meals.forEach(function (mm) { mm.items.forEach(function (it) { itemCount++; it.reasons.forEach(function (rs) { reasonCount[rs] = (reasonCount[rs] || 0) + 1; }); }); }); });
+      var topReasons = Object.keys(reasonCount).sort(function (a, b) { return reasonCount[b] - reasonCount[a]; }).slice(0, 3);
+      var teacherText = [st.teacherName, st.teacherPhone].filter(Boolean).join(' ');
+      var tags = App.codeTags(st.codes || []) + (st.keywords || []).map(function (k) { return '<span class="tag kw">' + h(k) + '</span>'; }).join('');
+      var inactive = st.active === false;
+
+      el.innerHTML =
+        '<div class="page-head"><div><h2>' + h(st.label) + (st.note ? ' <span class="muted" style="font-size:14px;font-weight:500">' + h(st.note) + '</span>' : '') +
+        (inactive ? ' <span class="badge gray">사용 중지</span>' : '') + '</h2>' +
+        '<div class="sub"><a href="#/students">← 학생 목록</a> · ' + (teacherText ? '담임 ' + h(teacherText) + ' · ' : '') +
+        (tags ? '<span class="tags" style="display:inline">' + tags + '</span>' : '<span class="muted">등록된 알레르기 없음</span>') + '</div></div>' +
+        '<div class="actions"><button class="btn" id="prev">‹ 이전 달</button><button class="btn" id="today">이번 달</button><button class="btn" id="next">다음 달 ›</button><input type="month" id="pick" value="' + ym + '">' +
+        '<button class="btn" id="edit">학생 수정</button></div></div>' +
+        '<div class="grid cols-3" style="margin-bottom:16px">' +
+        '<div class="card"><div class="small muted">' + Number(p[1]) + '월 급식일</div><div style="font-size:28px;font-weight:800">' + m.mealDates.length + '<span style="font-size:14px;font-weight:600"> 일</span></div><div class="small muted">관리 끼니: ' + h(m.mealTypes.join('·')) + '</div></div>' +
+        '<div class="card"><div class="small muted">못 먹는 날</div><div style="font-size:28px;font-weight:800;color:' + (m.days.length ? 'var(--danger)' : '#16a34a') + '">' + m.days.length + '<span style="font-size:14px;font-weight:600"> 일</span></div><div class="small muted">' + (m.days.length ? '메뉴 ' + itemCount + '개' : '이번 달 해당 없음 🎉') + '</div></div>' +
+        '<div class="card"><div class="small muted">자주 걸리는 원인</div><div style="font-size:18px;font-weight:800;margin:6px 0 2px">' + (topReasons.length ? topReasons.map(function (rs) { return h(rs) + ' <span class="muted" style="font-weight:600;font-size:13px">' + reasonCount[rs] + '</span>'; }).join(' · ') : '<span class="muted">—</span>') + '</div><div class="small muted">메뉴 기준 횟수</div></div>' +
+        '</div>' +
+        '<div class="card" style="margin-bottom:16px"><div class="cal-grid">' +
+        ['일', '월', '화', '수', '목', '금', '토'].map(function (d, i) { return '<div class="cal-dow' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '') + '">' + d + '</div>'; }).join('') +
+        cells.map(function (d) {
+          if (!d) return '<div class="cal-cell other"></div>';
+          var day = byDate[d];
+          var dw = App.dow(d);
+          var weekend = dw === 0 || dw === 6;
+          var hasMeal = !!mealDates[d];
+          var cls = 'cal-cell' + (d === todayStr ? ' today' : '') + (dw === 0 ? ' sun' : dw === 6 ? ' sat' : '') + (day ? ' hit' : '') + (!hasMeal ? ' dim' : '');
+          var body;
+          if (day) {
+            // 원인 메뉴(원인) 최대 2줄, 나머지는 +N. 끼니가 여럿이면 끼니명 접두
+            var lines = [];
+            day.meals.forEach(function (mm) { mm.items.forEach(function (it) { lines.push((m.mealTypes.length > 1 ? mm.mealType.charAt(0) + ' ' : '') + it.text); }); });
+            body = '<div class="menus" title="' + h(lines.join('\n')) + '">' + lines.slice(0, 2).map(h).join('<br>') + (lines.length > 2 ? '<br><span class="more">+' + (lines.length - 2) + '</span>' : '') + '</div>';
+          } else if (hasMeal) {
+            body = '<div class="cnt ok" title="해당 없음">✓</div>';
+          } else {
+            body = '<div class="cnt none">' + (weekend ? '' : '급식 없음') + '</div>';
+          }
+          return '<div class="' + cls + '" data-day="' + d + '"><div class="d">' + Number(d.slice(8)) + '</div>' + body + '<div class="badges"></div></div>';
+        }).join('') +
+        '</div><p class="small muted" style="margin-top:10px">빨간 칸은 이 학생이 못 먹는 메뉴가 있는 날(메뉴(원인)), ✓ 는 급식은 있지만 해당 없음. 날짜를 누르면 그날 전체 메뉴와 학생을 볼 수 있습니다.</p></div>' +
+        '<div class="card"><div class="list-head" style="margin-bottom:8px"><span><b>날짜별 목록</b></span><span class="badge ' + (m.days.length ? 'danger' : 'ok') + '">' + m.days.length + '일</span></div>' +
+        (m.days.length ?
+          '<div class="table-wrap"><table><thead><tr><th style="width:110px">날짜</th><th style="width:70px">끼니</th><th>못 먹는 메뉴 (원인)</th></tr></thead><tbody>' +
+          m.days.map(function (d) {
+            return d.meals.map(function (mm, i) {
+              return '<tr class="clickable" data-day="' + d.date + '" title="날짜 상세로 이동">' + (i === 0 ? '<td rowspan="' + d.meals.length + '">' + h(App.fmtDate(d.date)) + '</td>' : '') +
+                '<td>' + h(mm.mealType) + '</td><td class="wrap">' + mm.items.map(function (it) { return '<b>' + h(it.menu) + '</b><span class="muted">(' + h(it.reasons.join(', ')) + ')</span>'; }).join(' · ') + '</td></tr>';
+            }).join('');
+          }).join('') + '</tbody></table></div>'
+          : '<div class="empty">' + (m.mealDates.length ? '이번 달에는 못 먹는 메뉴가 없습니다 🎉' : '이번 달 급식 데이터가 없습니다. 급식 관리에서 동기화하세요.') + '</div>') +
+        '</div>';
+
+      App.$('#prev').onclick = function () { goYm(App.addMonths(ym, -1)); };
+      App.$('#next').onclick = function () { goYm(App.addMonths(ym, 1)); };
+      App.$('#today').onclick = function () { goYm(todayStr.slice(0, 7)); };
+      App.$('#pick').onchange = function (e) { if (e.target.value) goYm(e.target.value); };
+      App.$('#edit').onclick = function () {
+        App.studentEditor(st, st.schoolYear || App.state.boot.schoolYear, function () { App.changed('students'); App.rerender(); });
+      };
+      // 달력 칸·표 행 클릭 → 날짜 상세 (컨테이너 위임)
+      App.on(el, 'click', function (e) {
+        var cell = e.target.closest('[data-day]');
+        if (cell && el.contains(cell)) App.go('day/' + cell.dataset.day);
+      });
+    });
+  },
+};
+</script>

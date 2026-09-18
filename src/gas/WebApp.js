@@ -208,6 +208,41 @@ function apiDay(token, date) {
   });
 }
 
+// ---------- 학생별 월간 현황 ----------
+
+/**
+ * 웹앱: 학생 1명의 한 달 판별 결과 (캐시됨).
+ * 비활성·지난 학년도 학생도 열 수 있도록 전체 학생에서 찾되, 판별 규칙(담임·키워드 동의어)은 활성 학생과 같게 붙인다.
+ * @returns { ym, start, end, mealTypes, student, mealDates: [date], days: [{ date, meals: [{ mealType, items: [{menu, reasons, matchedCodes, matchedKeywords, text}], text }] }] }
+ */
+function apiStudentMonth(token, row, ym) {
+  requireSession(token);
+  row = Number(row);
+  if (!row) throw new Error('학생 행 번호 오류');
+  if (!/^\d{4}-\d{2}$/.test(ym || '')) throw new Error('월 형식 오류');
+  return cached_('studentMonth:' + row + ':' + ym, function () {
+    var settings = readSettings();
+    var mealTypes = managedMealTypes_(settings);
+    var st = readStudents_().filter(function (s) { return Number(s._row) === row; })[0];
+    if (!st) throw new Error('학생을 찾을 수 없습니다 (행 ' + row + ')');
+    st = expandStudentKeywords(attachTeachers([st], teacherMap_(settings)), parseKeywordList(settings['기타알레르기목록']))[0];
+    var range = monthRange(ym);
+    var meals = readMealsInRange_(range.start, range.end, mealTypes);
+    var mealDates = {};
+    meals.forEach(function (m) { mealDates[m.date] = true; });
+    var days = calcStudentDays(checkPeriod([st], meals, mealTypes)).map(function (d) {
+      return { date: d.date, meals: d.meals.map(function (m) {
+        return { mealType: m.mealType, text: m.items.map(formatAffectedItem).join(', '), items: m.items.map(function (it) {
+          return { menu: it.menu.name, matchedCodes: it.matchedCodes, matchedKeywords: it.matchedKeywords,
+            reasons: allergenNames(it.matchedCodes).concat(it.matchedKeywords), text: formatAffectedItem(it) };
+        }) };
+      }) };
+    });
+    return { ym: ym, start: range.start, end: range.end, mealTypes: mealTypes, student: serializeStudent_(st),
+      mealDates: Object.keys(mealDates).sort(), days: days };
+  });
+}
+
 // ---------- 로그 ----------
 
 /** 웹앱: 최근 알림로그 목록. opts.failedOnly 로 실패 건만 필터 */

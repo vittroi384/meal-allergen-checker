@@ -250,6 +250,24 @@ function summarizePeriod(periodResult) {
   });
 }
 
+/**
+ * 학생 1명으로 돌린 checkPeriod 결과 → 날짜별 평탄화 (학생별 월간 현황용).
+ * 해당 항목이 있는 날짜만 반환. 학생을 여럿 넣었다면 모두 섞여 나오므로 반드시 1명으로 호출.
+ * @returns [{ date, meals: [{ mealType, items }] }]  (날짜 오름차순, 끼니는 mealTypes 순)
+ */
+function calcStudentDays(periodResult) {
+  var out = [];
+  Object.keys(periodResult).sort().forEach(function (date) {
+    var byType = periodResult[date];
+    var meals = [];
+    Object.keys(byType).forEach(function (mt) {
+      byType[mt].affected.forEach(function (a) { meals.push({ mealType: mt, items: a.items }); });
+    });
+    if (meals.length) out.push({ date: date, meals: meals });
+  });
+  return out;
+}
+
 /** 한 항목의 원인 문자열: '돈까스(밀, 돼지고기)' / '키위 요거트(키위)' / '카레(밀, 키위)' */
 function formatAffectedItem(item) {
   var reasons = allergenNames(item.matchedCodes).concat(item.matchedKeywords);

@@ -118,3 +118,21 @@ test('formatStudentLabel / studentKey', () => {
   const sorted = core.sortStudents([student({ name: '나' }), student({ grade: 1, name: '다' }), student({ name: '가' })]);
   assert.deepEqual(sorted.map((x) => x.grade + x.name), ['1다', '3가', '3나']);
 });
+
+test('calcStudentDays flattens a single-student checkPeriod result to affected dates only', () => {
+  const st = student({ name: '김하늘', codes: '6', keywords: '키위' });
+  const menus = [
+    menu({ date: '2026-09-01', mealType: '중식', name: '돈까스', codes: '1.5.6' }),
+    menu({ date: '2026-09-01', mealType: '중식', name: '쌀밥', codes: '-' }),
+    menu({ date: '2026-09-02', mealType: '중식', name: '미역국', codes: '5' }),        // 해당 없음
+    menu({ date: '2026-09-03', mealType: '조식', name: '키위 요거트', codes: '2' }),   // 키워드
+    menu({ date: '2026-09-03', mealType: '중식', name: '우동', codes: '6' }),
+  ];
+  const days = core.calcStudentDays(core.checkPeriod([st], menus, ['조식', '중식']));
+  assert.deepEqual(days.map((d) => d.date), ['2026-09-01', '2026-09-03']);
+  assert.deepEqual(days[0].meals.map((m) => m.mealType), ['중식']);
+  assert.deepEqual(days[0].meals[0].items.map(core.formatAffectedItem), ['돈까스(밀)']);
+  assert.deepEqual(days[1].meals.map((m) => m.mealType), ['조식', '중식']);
+  assert.deepEqual(days[1].meals[0].items.map(core.formatAffectedItem), ['키위 요거트(키위)']);
+  assert.deepEqual(core.calcStudentDays({}), []);
+});
