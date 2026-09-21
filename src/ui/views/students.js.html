@@ -6,7 +6,7 @@ App.views.students = {
     var h = App.h;
     var self = this;
     // 필터·정렬은 뷰 객체에 저장해 화면을 떠났다 돌아와도 유지된다
-    var filter = self._filter || { q: '', grade: '', classNo: '', activeOnly: true, codes: [], kws: [] };
+    var filter = self._filter || { q: '', grade: '', classNo: '', codes: [], kws: [] };
     filter.codes = filter.codes || []; filter.kws = filter.kws || [];
     self._filter = filter;
     var sort = self._sort || { key: 'class', dir: 1 };
@@ -15,9 +15,8 @@ App.views.students = {
       var all = data.students;
       var grades = {}, classes = {};
       all.forEach(function (s) { grades[s.grade] = true; if (!filter.grade || Number(filter.grade) === s.grade) classes[s.classNo] = true; });
-      // 필터 적용: 현재 학년도 사용 중 / 학년 / 반 / 검색어(공백 무시, 이름·알레르기·담임·연락처 통합 검색)
+      // 필터 적용: 학년 / 반 / 검색어(공백 무시, 이름·알레르기·담임·연락처 통합 검색). 중지·지난 학년도 학생도 목록에 포함(흐리게 + 배지)
       var listBase = all.filter(function (s) {
-        if (filter.activeOnly && (!s.active || (s.schoolYear && s.schoolYear !== data.schoolYear))) return false;
         if (filter.grade && s.grade !== Number(filter.grade)) return false;
         if (filter.classNo && s.classNo !== Number(filter.classNo)) return false;
         if (filter.q) {
@@ -76,7 +75,6 @@ App.views.students = {
         '<input type="text" id="q" placeholder="이름, 학년-반, 알레르기, 담임 검색" value="' + h(filter.q) + '" style="width:260px;max-width:100%">' +
         '<select id="grade"><option value="">전체 학년</option>' + Object.keys(grades).sort(function (a, b) { return a - b; }).map(function (g) { return '<option value="' + g + '"' + (String(filter.grade) === g ? ' selected' : '') + '>' + g + '학년</option>'; }).join('') + '</select>' +
         '<select id="class"><option value="">전체 반</option>' + Object.keys(classes).sort(function (a, b) { return a - b; }).map(function (c) { return '<option value="' + c + '"' + (String(filter.classNo) === c ? ' selected' : '') + '>' + c + '반</option>'; }).join('') + '</select>' +
-        '<label class="check"><input type="checkbox" id="active-only"' + (filter.activeOnly ? ' checked' : '') + '> 현재 학년도 사용 중만</label>' +
         '<span class="badge blue" style="margin-left:auto">' + list.length + '명</span></div>' +
         statChipsHtml +
         // 열 우선순위: 고정(학년-반 70, 이름 90, 담임 150, 학부모알림 160, 사용 80, 작업 130) · 알레르기 칩 3개(230) · 기타 칩 1개(76) · 비고 = 나머지 전부
@@ -102,16 +100,15 @@ App.views.students = {
       // reload: 서버 데이터가 바뀐 경우(캐시 무효화 후 렌더), rerender: 필터·정렬만 바뀐 경우(캐시 그대로)
       var reload = function () { App.changed('students'); return self.render(el); };
       var rerender = function () { return self.render(el); };
-      var applyFilter = function () { filter.q = App.$('#q').value; filter.grade = App.$('#grade').value; filter.classNo = App.$('#class').value; filter.activeOnly = App.$('#active-only').checked; rerender(); };
+      var applyFilter = function () { filter.q = App.$('#q').value; filter.grade = App.$('#grade').value; filter.classNo = App.$('#class').value; rerender(); };
       var qTimer;
       App.$('#q').oninput = function () { clearTimeout(qTimer); qTimer = setTimeout(applyFilter, 250); };
       App.$('#grade').onchange = function () { filter.classNo = ''; applyFilter(); };
       App.$('#class').onchange = applyFilter;
-      App.$('#active-only').onchange = applyFilter;
       App.$('#add').onclick = function () { App.studentEditor({}, data.schoolYear, reload); };
       App.$('#upload').onclick = function () { App.studentUpload(reload); };
       App.$('#dl-template').onclick = function (e) { App.downloadXlsx('template', {}, e.currentTarget); };
-      App.$('#dl-list').onclick = function (e) { App.downloadXlsx('students', { grade: filter.grade, classNo: filter.classNo, activeOnly: filter.activeOnly }, e.currentTarget); };
+      App.$('#dl-list').onclick = function (e) { App.downloadXlsx('students', { grade: filter.grade, classNo: filter.classNo }, e.currentTarget); };
       // 위임: 헤더 클릭 정렬(같은 키면 방향 반전) / 수정 버튼(학생 모달) / 사용·중지 토글(확인 후 apiSetStudentActive)
       App.on(el, 'click', function (e) {
         var thEl = e.target.closest('th[data-sort]');
