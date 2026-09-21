@@ -56,7 +56,9 @@ App.views.meals = {
         App.api('apiSyncMonths', months).then(function (res) {
           var s = res.stats;
           App.$('#sync-result').innerHTML = res.ok
-            ? '<div class="notice ok">동기화 완료 (' + res.months.join(', ') + ') — 끼니 ' + s.mealsFetched + '개: 신규 ' + s.mealsInserted + ', 변경 ' + s.mealsReplaced + ', 동일 ' + s.mealsUnchanged + ', 삭제 ' + s.mealsRemoved + ', 수동 보호 ' + s.mealsProtected + (res.uncheckedCount ? ' · 확인 필요 메뉴 ' + res.uncheckedCount + '개' : '') + '</div>'
+            ? '<div class="notice ok">동기화 완료 (' + res.months.join(', ') + ') — 끼니 ' + s.mealsFetched + '개: 신규 ' + s.mealsInserted + ', 변경 ' + s.mealsReplaced + ', 동일 ' + s.mealsUnchanged + ', 삭제 ' + s.mealsRemoved + ', 수동 보호 ' + s.mealsProtected + (res.uncheckedCount ? ' · 확인 필요 메뉴 ' + res.uncheckedCount + '개' : '') +
+              // 달별 줄: NEIS 에 아직 식단이 없는 달은 그렇게 표시
+              ((res.byMonth || []).length > 1 ? '<div class="small" style="margin-top:6px">' + res.byMonth.map(function (m) { var ms = m.stats || {}; return m.noData ? '<b>' + h(m.ym) + '</b>: NEIS 에 아직 식단 없음' : '<b>' + h(m.ym) + '</b>: 끼니 ' + (ms.mealsFetched || 0) + '개 (신규 ' + (ms.mealsInserted || 0) + ', 변경 ' + (ms.mealsReplaced || 0) + ', 동일 ' + (ms.mealsUnchanged || 0) + ', 삭제 ' + (ms.mealsRemoved || 0) + ')'; }).join('<br>') + '</div>' : (res.byMonth && res.byMonth[0] && res.byMonth[0].noData ? '<div class="small" style="margin-top:6px">NEIS 에 아직 ' + h(res.byMonth[0].ym) + ' 식단이 없습니다</div>' : '')) + '</div>'
             : '<div class="notice danger">동기화 실패: ' + h(res.error) + '</div>';
           App.busy(btn, false);
           if (res.ok) setTimeout(reload, 1200);

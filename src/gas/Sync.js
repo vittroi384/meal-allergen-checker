@@ -7,7 +7,7 @@
  * 여러 달 동기화.
  * @param yearMonths ['2026-09', '2026-10']
  * @param opts { notify: 결과를 담당자에게 알림, notifyOnError: 실패 시에만 알림 }
- * @returns { ok, months, stats, protectedMeals, uncheckedCount, error }
+ * @returns { ok, months, stats, byMonth: [{ ym, noData, stats }], protectedMeals, uncheckedCount, error }
  */
 function runSyncMonths_(yearMonths, opts) {
   var o = opts || {};
@@ -15,7 +15,8 @@ function runSyncMonths_(yearMonths, opts) {
   var mealTypes = managedMealTypes_(settings);
   var total = { mealsFetched: 0, mealsInserted: 0, mealsReplaced: 0, mealsUnchanged: 0, mealsRemoved: 0, mealsProtected: 0 };
   var protectedMeals = [];
-  var result = { ok: true, months: yearMonths, stats: total, protectedMeals: protectedMeals, uncheckedCount: 0, error: '' };
+  var byMonth = [];
+  var result = { ok: true, months: yearMonths, stats: total, byMonth: byMonth, protectedMeals: protectedMeals, uncheckedCount: 0, error: '' };
 
   try {
     ensureSheet_(SHEETS.MEALS, HEADERS.MEALS);
@@ -30,13 +31,15 @@ function runSyncMonths_(yearMonths, opts) {
       deleteMealRows_(plan.deleteRows);
       appendMeals_(plan.insertRows);
       Object.keys(total).forEach(function (k) { total[k] += plan.stats[k] || 0; });
+      // 달별 결과: NEIS 에 아직 식단이 없는 달(noData)을 구분해 보여준다
+      byMonth.push({ ym: ym, noData: !!fetched.noData, stats: plan.stats });
       plan.protectedMeals.forEach(function (k) { protectedMeals.push(k); });
       // 코드 없이 들어온 메뉴 = 담당자가 알레르기 정보를 직접 확인해야 하는 건수
       result.uncheckedCount += plan.insertRows.filter(function (r) { return !r.codes; }).length;
     });
     sortMealsSheet_();
     setState('LAST_SYNC_AT', nowStr_());
-    setState('LAST_SYNC_RESULT', JSON.stringify({ ok: true, months: yearMonths, stats: total, at: nowStr_() }));
+    setState('LAST_SYNC_RESULT', JSON.stringify({ ok: true, months: yearMonths, stats: total, byMonth: byMonth, at: nowStr_() }));
     appendLog_({ kind: NOTICE_KINDS.SYNC_RESULT, summary: '동기화 완료 ' + yearMonths.join(',') + ' ' + JSON.stringify(total), ok: true });
   } catch (e) {
     result.ok = false;

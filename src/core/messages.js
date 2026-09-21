@@ -161,12 +161,21 @@ function formatSyncResult(p) {
   if (p.ok) {
     lines.push('가져온 끼니 ' + (s.mealsFetched || 0) + '개 / 신규 ' + (s.mealsInserted || 0) + ' / 변경 ' + (s.mealsReplaced || 0) +
       ' / 동일 ' + (s.mealsUnchanged || 0) + ' / 삭제 ' + (s.mealsRemoved || 0) + ' / 수동 보호 ' + (s.mealsProtected || 0));
+    (p.byMonth || []).forEach(function (m) { lines.push('· ' + formatSyncMonthLine(m)); });
     if (p.uncheckedCount) lines.push('알레르기 표시 없는 메뉴: ' + p.uncheckedCount + '개 (웹앱에서 확인 필요)');
   } else {
     lines.push('오류: ' + (p.error || '알 수 없음'));
   }
   if (p.webAppUrl) lines.push('웹앱: ' + p.webAppUrl);
   return { subject: title, text: lines.join('\n') };
+}
+
+/** 동기화 달별 한 줄: '2026-10: NEIS 에 아직 식단 없음' 또는 '2026-09: 끼니 40개 (신규 0, 변경 2, 동일 38, 삭제 0, 수동 보호 1)' */
+function formatSyncMonthLine(m) {
+  var s = (m && m.stats) || {};
+  if (m.noData) return m.ym + ': NEIS 에 아직 식단 없음';
+  return m.ym + ': 끼니 ' + (s.mealsFetched || 0) + '개 (신규 ' + (s.mealsInserted || 0) + ', 변경 ' + (s.mealsReplaced || 0) +
+    ', 동일 ' + (s.mealsUnchanged || 0) + ', 삭제 ' + (s.mealsRemoved || 0) + ', 수동 보호 ' + (s.mealsProtected || 0) + ')';
 }
 
 /** 중복 발송 방지 키. 학생 단위 알림은 studentKey 포함. */

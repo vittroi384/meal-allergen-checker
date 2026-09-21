@@ -63,6 +63,10 @@ test('formatSyncResult', () => {
   assert.ok(ok.subject.includes('완료'));
   assert.ok(ok.text.includes('신규 40'));
   assert.ok(ok.text.includes('3개'));
+  const by = core.formatSyncResult({ ok: true, months: ['2026-09', '2026-10'], stats: { mealsFetched: 40 },
+    byMonth: [{ ym: '2026-09', noData: false, stats: { mealsFetched: 40, mealsReplaced: 2, mealsUnchanged: 38 } }, { ym: '2026-10', noData: true, stats: { mealsFetched: 0 } }] });
+  assert.ok(by.text.includes('2026-09: 끼니 40개 (신규 0, 변경 2, 동일 38'));
+  assert.ok(by.text.includes('2026-10: NEIS 에 아직 식단 없음'));
   const bad = core.formatSyncResult({ ok: false, months: ['2026-09'], error: 'INFO-300 인증키 오류' });
   assert.ok(bad.subject.includes('실패'));
   assert.ok(bad.text.includes('INFO-300'));
