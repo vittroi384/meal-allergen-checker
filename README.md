@@ -1,4 +1,4 @@
-# 🍽️ 급식 알레르기 판별 시스템
+# 급식 알레르기 판별 시스템
 
 ![Google Apps Script](https://img.shields.io/badge/Google%20Apps%20Script-V8-4285F4?logo=google&logoColor=white)
 ![Google Sheets](https://img.shields.io/badge/Google%20Sheets-DB-34A853?logo=googlesheets&logoColor=white)
