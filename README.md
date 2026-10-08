@@ -376,5 +376,5 @@ SPEC.md              요구사항의 단일 출처
 | 비밀번호 해시 | SHA-256 + salt 1회 해시. 반복 횟수를 늘리는 KDF(PBKDF2 등)는 Apps Script 표준 유틸리티에 없어 적용하지 않았다 | `src/gas/Auth.js` `hashPassword_` |
 | 트리거 락 건너뜀 | 다른 실행이 30초 안에 락을 놓지 않으면 그 회차는 콘솔 경고만 남기고 건너뛴다. 알림로그에는 남지 않는다 | `src/gas/Triggers.js` `runGuarded_` |
 | 자동 테스트 범위 | `npm test` 는 `src/core` 만 대상. `src/gas`·`src/ui` 는 문법 검사와 수동 체크리스트로 확인한다 | `test/`, `scripts/check-syntax.js` |
-| 전역 함수 노출 | 이전 리뷰 지적: 비밀값·설정 함수가 `_` 없이 전역이라 웹앱에서 호출 가능했다 → 수정 커밋 반영(`_` 접미어, `requireSheetUi_`, `requireTrigger_`). 운영 배포는 다음 재배포 때 적용 | `src/gas/Props.js`, `src/gas/Setup.js`, `src/gas/Triggers.js` |
-| NEIS 빈 응답 시 삭제 | 이전 리뷰 지적: INFO-200(데이터 없음) 응답을 빈 식단으로 보고 보호되지 않은 끼니를 삭제했다 → 수정 커밋 반영(`noData` 이면 삭제 보류, 경고 로그). 운영 배포는 다음 재배포 때 적용 | `src/core/syncDiff.js` `calcSyncPlan`, `src/gas/Sync.js` `runSyncMonths_` |
+| 전역 함수 노출 | 이전 리뷰 지적: 비밀값·설정 함수가 `_` 없이 전역이라 웹앱에서 호출 가능했다 → 수정 반영(`_` 접미어, `requireSheetUi_`, `requireTrigger_`) | `src/gas/Props.js`, `src/gas/Setup.js`, `src/gas/Triggers.js` |
+| NEIS 빈 응답 시 삭제 | 이전 리뷰 지적: INFO-200(데이터 없음) 응답을 빈 식단으로 보고 보호되지 않은 끼니를 삭제했다 → 수정 반영(`noData` 이면 삭제 보류, 경고 로그) | `src/core/syncDiff.js` `calcSyncPlan`, `src/gas/Sync.js` `runSyncMonths_` |
