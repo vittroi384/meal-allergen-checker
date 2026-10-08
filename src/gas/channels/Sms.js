@@ -13,8 +13,8 @@ var _smsProviders = {
       // 단문(SMS)은 90바이트(한글 약 45자)까지 — 넘으면 장문(LMS)으로 전환하고 제목을 붙인다
       var isLms = calcSmsBytes(text) > 90;
       var payload = {
-        key: getSecret('SMS_API_KEY'),
-        user_id: getSecret('SMS_USER_ID'),
+        key: getSecret_('SMS_API_KEY'),
+        user_id: getSecret_('SMS_USER_ID'),
         sender: String(settings['문자발신번호'] || '').replace(/\D/g, ''),
         receiver: String(to).replace(/\D/g, ''),
         msg: text,
@@ -34,7 +34,7 @@ var _smsProviders = {
 };
 
 /** 설정된 문자 제공자 구현을 찾는다 (기본 알리고). 미지원 이름이면 null */
-function _smsProvider(settings) {
+function smsProvider_(settings) {
   return _smsProviders[String(settings['문자제공자'] || '알리고').trim()] || null;
 }
 
@@ -43,25 +43,25 @@ var smsChannel_ = {
   name: '문자',
   isEnabled: function (settings) {
     if (!settingBool_(settings, '채널_문자')) return false;
-    var p = _smsProvider(settings);
+    var p = smsProvider_(settings);
     if (!p) return false;
     if (!String(settings['문자발신번호'] || '').replace(/\D/g, '')) return false;
-    return p.requiredSecrets.every(function (k) { return hasSecret(k); });
+    return p.requiredSecrets.every(function (k) { return hasSecret_(k); });
   },
   /** 비활성 사유 (설정 화면 안내용) */
   disabledReason: function (settings) {
     if (!settingBool_(settings, '채널_문자')) return '설정에서 꺼져 있음';
-    var p = _smsProvider(settings);
+    var p = smsProvider_(settings);
     if (!p) return '지원하지 않는 문자 제공자: ' + settings['문자제공자'];
     if (!String(settings['문자발신번호'] || '').replace(/\D/g, '')) return '발신번호 없음';
-    var missing = p.requiredSecrets.filter(function (k) { return !hasSecret(k); });
+    var missing = p.requiredSecrets.filter(function (k) { return !hasSecret_(k); });
     return missing.length ? '미입력: ' + missing.join(', ') : '';
   },
   /** to: 수신 휴대폰 번호. msg.settings 는 반복 발송 시 재조회를 아끼려 호출측에서 넘길 수 있음 */
   send: function (msg) {
     try {
-      var settings = msg.settings || readSettings();
-      var p = _smsProvider(settings);
+      var settings = msg.settings || readSettings_();
+      var p = smsProvider_(settings);
       if (!p) return { ok: false, error: '문자 제공자 미설정' };
       return p.send(settings, msg.to, msg.text);
     } catch (e) {

@@ -4,8 +4,8 @@
 
 /** 학생 목록 조회(웹앱). 정렬된 전체 학생 + 담임 정보 + 담임 불일치 목록을 반환. */
 function apiStudents(token) {
-  requireSession(token);
-  var settings = readSettings();
+  requireSession_(token);
+  var settings = readSettings_();
   var schoolYear = currentSchoolYear_(settings);
   var all = sortStudents(readStudents_());
   var active = filterActiveStudents(all, schoolYear);
@@ -21,7 +21,7 @@ function apiStudents(token) {
  * @returns { ok, errors?, student? }
  */
 function apiSaveStudent(token, raw) {
-  requireSession(token);
+  requireSession_(token);
   var input = Object.assign({}, raw);
   if (Array.isArray(input.codes)) input.codes = input.codes.join(',');
   if (Array.isArray(input.keywords)) input.keywords = input.keywords.join(',');
@@ -57,10 +57,10 @@ function apiSaveStudent(token, raw) {
  * @returns { ok, keywordList }
  */
 function apiAddKeyword(token, word, synonyms) {
-  requireSession(token);
+  requireSession_(token);
   var w = String(word || '').trim();
   if (!w) throw new Error('키워드를 입력하세요');
-  var settings = readSettings();
+  var settings = readSettings_();
   var list = parseKeywordList(settings['기타알레르기목록']);
   var norm = function (s) { return String(s || '').replace(/\s+/g, '').toLowerCase(); };
   var entry = list.filter(function (e) { return norm(e.word) === norm(w); })[0];
@@ -70,13 +70,13 @@ function apiAddKeyword(token, word, synonyms) {
   } else {
     list.push({ word: w, synonyms: syn });
   }
-  writeSettings({ '기타알레르기목록': formatKeywordList(list) });
+  writeSettings_({ '기타알레르기목록': formatKeywordList(list) });
   return { ok: true, keywordList: list };
 }
 
 /** 학생 사용여부(활성/비활성) 토글(웹앱). 행 삭제 대신 비활성으로 관리한다. */
 function apiSetStudentActive(token, row, active) {
-  requireSession(token);
+  requireSession_(token);
   var s = readStudents_().filter(function (x) { return x._row === row; })[0];
   if (!s) throw new Error('학생을 찾지 못했습니다');
   s.active = !!active;
@@ -126,7 +126,7 @@ function serializeMergePlan_(plan) {
 
 /** @param input { tsv?, base64?, filename? }  @returns { rawRows, plan } */
 function apiPreviewStudentUpload(token, input) {
-  requireSession(token);
+  requireSession_(token);
   var rawRows = studentRowsFromInput_(input || {});
   if (rawRows.length > 2000) throw new Error('한 번에 2,000명까지 업로드할 수 있습니다');
   var plan = calcStudentMergePlan(rawRows, readStudents_(), currentSchoolYear_());
@@ -135,7 +135,7 @@ function apiPreviewStudentUpload(token, input) {
 
 /** 미리보기에서 받은 rawRows 를 그대로 되돌려 받아 서버에서 다시 계산 후 반영 */
 function apiApplyStudentUpload(token, rawRows) {
-  requireSession(token);
+  requireSession_(token);
   // 동시에 두 명이 업로드해도 시트가 꼬이지 않도록 스크립트 락 (최대 20초 대기)
   var lock = LockService.getScriptLock();
   lock.waitLock(20 * 1000);

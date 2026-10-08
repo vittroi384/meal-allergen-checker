@@ -3,7 +3,7 @@
 ![Google Apps Script](https://img.shields.io/badge/Google%20Apps%20Script-V8-4285F4?logo=google&logoColor=white)
 ![Google Sheets](https://img.shields.io/badge/Google%20Sheets-DB-34A853?logo=googlesheets&logoColor=white)
 ![NEIS Open API](https://img.shields.io/badge/NEIS-Open%20API-orange)
-![Tests](https://img.shields.io/badge/tests-76%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-78%20passing-brightgreen)
 ![Cost](https://img.shields.io/badge/%EC%9A%B4%EC%98%81%EB%B9%84-0%EC%9B%90-blue)
 ![Serverless](https://img.shields.io/badge/%EC%84%9C%EB%B2%84-%EC%97%86%EC%9D%8C-lightgrey)
 
@@ -11,7 +11,7 @@
 
 - **비용 0원** — Google 스프레드시트 + Apps Script 만 사용 (문자 알림만 선택적 유료)
 - **서버 없음, 설치 없음** — 학교 담당자는 웹앱 링크 하나만 열면 됩니다
-- **데이터는 내 구글 계정 안에** — 학생 정보가 외부 서버로 나가지 않습니다
+- **데이터는 내 구글 계정 안에** — 학생 명단은 구글 계정 밖에 저장되지 않습니다 (알림은 선택한 채널 서버를 경유)
 
 ## 스크린샷
 
@@ -30,7 +30,7 @@
 | 화면 | 내용 |
 |---|---|
 | 대시보드 | 오늘 해당 학생, 이번 주 요약, 확인 필요 메뉴, 최근 알림 실패("확인함 · 숨기기"로 치울 수 있음) |
-| 전광판 | 대시보드의 **📺 전광판** 버튼(또는 주소 뒤에 `#/board`). 급식실 모니터용 — 오늘 해당 학생만 반별로 큰 글씨, 자동 페이지 넘김(8초)·자동 새로고침(5분). F11 로 전체화면, Esc 로 나가기 |
+| 전광판 | 대시보드의 **📺 전광판** 버튼(또는 주소 뒤에 `#/board`). 급식실 모니터용 — 오늘 해당 학생만 반별로 큰 글씨, 자동 페이지 넘김(10초)·자동 새로고침(5분). F11 로 전체화면, Esc 로 나가기 |
 | 달력 | 날짜별 해당 인원, 클릭하면 메뉴·학생 상세와 편집 |
 | 학생 관리 | 검색/추가/수정, 엑셀(xlsx·붙여넣기) 일괄 업로드, 양식·명단 다운로드. 상단 **알레르기별 인원 칩**(여러 개 골라 그 알레르기 학생만 보기), 이름 클릭 → **학생별 월간 현황**(그 학생이 못 먹는 날·메뉴만 달력으로) → **통신문 인쇄**(학부모 안내문 A4 1장, 인사말·맺음말 편집) |
 | 급식 관리 | NEIS 동기화, 확인 필요 메뉴 처리, 수동 보호, 월 xlsx 내보내기/가져오기 |
@@ -66,7 +66,7 @@
 | (선택) 텔레그램 봇 토큰 | 담당자 알림을 텔레그램으로도 받고 싶을 때. 무료. |
 | (선택) 알리고 문자 계정 | 학부모 문자 알림용. 유료 (건당 약 10원대). |
 
-> **주의**: 학생 알레르기 정보는 개인정보입니다. 전용 계정의 비밀번호와 2단계 인증을 반드시 설정하고, 웹앱 링크는 담당자에게만 공유하세요. 7절의 잠금 모드를 켜는 것을 권장합니다.
+> **주의**: 학생 알레르기 정보는 개인정보입니다. 전용 계정의 비밀번호와 2단계 인증을 반드시 설정하고, 웹앱 링크는 담당자에게만 공유하세요. 설치 직후 7절의 접속 잠금을 **설정 탭만 잠금** 이상으로 켜세요 (기본값은 잠금 없음).
 
 ---
 
@@ -296,7 +296,7 @@ URL 은 그대로 유지됩니다. 열 구조가 바뀐 업데이트라면 시�
 
 ## 11. 문제 해결
 
-실제로 겪었던 오류의 원인·해결 과정은 별도 문서 `문제해결사례.docx` 에 정리돼 있습니다 (저장소 미포함 — 담당자에게 요청).
+실제로 겪었던 오류의 원인·해결 과정은 별도 문서에 정리돼 있습니다 (비공개 문서).
 
 | 증상 | 확인할 것 |
 |---|---|
@@ -344,9 +344,9 @@ src/                 clasp 가 올리는 루트
     WebApp.js, ApiStudents.js, ApiMeals.js, ApiSettings.js, Xlsx.js  웹앱 API
     Migration.js     이관 내보내기/가져오기 · Triggers.js
   ui/                HtmlService SPA (index.html, styles.css.html, app.js.html, views/*.js.html)
-test/                node:test (핵심 로직 68건) — `npm test` 는 .html 안 스크립트 문법 검사도 포함
+test/                node:test (핵심 로직 78건) — `npm test` 는 .html 안 스크립트 문법 검사도 포함
 scripts/deploy.js    같은 배포 ID 로 재배포 (URL 고정)
-SPEC.md              요구사항의 단일 출처 · CLAUDE.md 프로젝트 규칙
+SPEC.md              요구사항의 단일 출처
 ```
 
 ### 명령
@@ -358,8 +358,23 @@ SPEC.md              요구사항의 단일 출처 · CLAUDE.md 프로젝트 규
 | `npm run open` | Apps Script 편집기 열기 · `npm run logs` 로그 |
 
 ### 설계 메모
-- 모든 `api*` 함수는 첫 인자로 세션 토큰을 받고 `requireSession(token[, 'admin'])` 로 시작. 설정 계열은 `admin`.
+- 모든 `api*` 함수는 첫 인자로 세션 토큰을 받고 `requireSession_(token[, 'admin'])` 로 시작. 설정 계열은 `admin`.
+- 웹앱에서 호출할 함수만 `api*` 이름을 쓰고, 나머지 서버 함수는 이름 끝에 `_` 접미어를 붙입니다 (Apps Script 는 끝에 `_` 가 붙은 함수만 `google.script.run`·트리거·메뉴 호출을 차단). 전역 이름이 필요한 시트 메뉴 함수(`menu*`, `setup`, `dialog*`)는 첫 줄 `requireSheetUi_()`, 트리거 핸들러(`trigger*`)는 첫 줄 `requireTrigger_(e)` 로 웹앱 경로를 막습니다.
 - 학생/급식/설정 읽기는 CacheService 10분 캐시. 시트 쓰기와 직접 편집(`onEdit`)에서 데이터 버전을 올려 즉시 무효화.
 - 비밀값은 Script Properties 에만. 로그·이관 JSON 에는 "설정됨" 여부만.
 - 웹앱은 iframe 안에서 실행되므로 내부 링크는 `location.hash` 만 바꿉니다. 화면 이벤트는 `App.on()` 교체 방식으로만 바인딩(누적 방지).
 - 자세한 요구사항과 결정 사항은 `SPEC.md` 를 보세요.
+
+### 알려진 한계
+| 항목 | 내용 | 위치 |
+|---|---|---|
+| 접속 잠금 기본값 | 설치 직후 인증 모드는 `off`(링크만 있으면 접속). 1절 안내대로 설정 탭만 잠금 이상으로 켜야 한다 | `src/gas/Auth.js` `authMode_` |
+| 월말 학부모 알림 공백 | 전날 저녁 알림은 시트에 있는 급식만 본다. 다음 달 식단은 매월 1일 04:00 동기화로 들어오므로 월말 저녁에는 1일분이 없다. 월말에 시트 메뉴 "지금 급식 동기화"(이번 달 + 다음 달)를 수동으로 한 번 실행하면 채워진다 | `src/gas/Notify.js` `planParentNotices_`, `src/gas/Triggers.js` `triggerMonthlySync` |
+| 로그인 실패 카운터 전역 | 실패 횟수를 단일 키로 세므로 한 사람이 10회 실패하면 15분 동안 모든 사용자의 로그인이 잠긴다 | `src/gas/Auth.js` `loginFailKey_`, `apiLogin` |
+| 알림로그 무한 성장 | 알림로그 시트는 추가만 하고 정리하지 않는다. 중복키 검사가 매 실행마다 전체를 읽는다 | `src/gas/Sheets.js` `appendLog_`, `readSuccessfulDedupeKeys_` |
+| 재시도 없음 | 이메일·문자·텔레그램 발송은 1회 시도이며 실패는 로그에만 남는다 | `src/gas/channels/*.js`, `src/gas/Notify.js` |
+| 비밀번호 해시 | SHA-256 + salt 1회 해시. 반복 횟수를 늘리는 KDF(PBKDF2 등)는 Apps Script 표준 유틸리티에 없어 적용하지 않았다 | `src/gas/Auth.js` `hashPassword_` |
+| 트리거 락 건너뜀 | 다른 실행이 30초 안에 락을 놓지 않으면 그 회차는 콘솔 경고만 남기고 건너뛴다. 알림로그에는 남지 않는다 | `src/gas/Triggers.js` `runGuarded_` |
+| 자동 테스트 범위 | `npm test` 는 `src/core` 만 대상. `src/gas`·`src/ui` 는 문법 검사와 수동 체크리스트로 확인한다 | `test/`, `scripts/check-syntax.js` |
+| 전역 함수 노출 | 이전 리뷰 지적: 비밀값·설정 함수가 `_` 없이 전역이라 웹앱에서 호출 가능했다 → 수정 커밋 반영(`_` 접미어, `requireSheetUi_`, `requireTrigger_`). 운영 배포는 다음 재배포 때 적용 | `src/gas/Props.js`, `src/gas/Setup.js`, `src/gas/Triggers.js` |
+| NEIS 빈 응답 시 삭제 | 이전 리뷰 지적: INFO-200(데이터 없음) 응답을 빈 식단으로 보고 보호되지 않은 끼니를 삭제했다 → 수정 커밋 반영(`noData` 이면 삭제 보류, 경고 로그). 운영 배포는 다음 재배포 때 적용 | `src/core/syncDiff.js` `calcSyncPlan`, `src/gas/Sync.js` `runSyncMonths_` |

@@ -121,6 +121,7 @@ function applySheetFormatting_(sheet) {
 
 /** 메뉴: 서식 다시 적용 */
 function menuReapplyFormatting() {
+  requireSheetUi_();
   var n = applyAllFormatting_();
-  _alert('서식 적용 완료', n + '개 시트에 열 너비·헤더·필터·서식을 다시 적용했습니다.');
+  alert_('서식 적용 완료', n + '개 시트에 열 너비·헤더·필터·서식을 다시 적용했습니다.');
 }

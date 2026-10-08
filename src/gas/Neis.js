@@ -6,7 +6,7 @@
 
 /** 저장된 NEIS 인증키 반환. 미설정이면 안내 문구와 함께 예외. */
 function neisKey_() {
-  var key = getSecret('NEIS_API_KEY');
+  var key = getSecret_('NEIS_API_KEY');
   if (!key) throw new Error('NEIS 인증키가 설정되지 않았습니다. 웹앱 설정 화면에서 입력하세요 (open.neis.go.kr 에서 발급).');
   return key;
 }
@@ -27,7 +27,7 @@ function neisFetchJson_(url) {
 
 /** 설정 시트에서 학교 식별자(시도교육청코드·학교코드)를 읽는다. 미설정이면 예외. */
 function schoolParams_(settings) {
-  var s = settings || readSettings();
+  var s = settings || readSettings_();
   var atpt = String(s['시도교육청코드'] || '').trim();
   var code = String(s['학교코드'] || '').trim();
   if (!atpt || !code) throw new Error('학교가 설정되지 않았습니다. 웹앱 설정 화면에서 학교를 검색해 선택하세요.');

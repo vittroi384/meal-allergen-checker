@@ -64,7 +64,7 @@ function buildXlsxBase64_(sheets) {
 }
 
 /** 파일명에 쓸 수 없는 문자·공백을 _ 로 치환 */
-function _safeFilename(s) {
+function safeFilename_(s) {
   return String(s || '').replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, '_');
 }
 
@@ -75,9 +75,9 @@ function _safeFilename(s) {
  * @returns { filename, base64, mime }
  */
 function apiDownloadXlsx(token, kind, params) {
-  requireSession(token);
+  requireSession_(token);
   var p = params || {};
-  var settings = readSettings();
+  var settings = readSettings_();
   var school = settings['학교명'] || '학교';
   var spec;
   var label;
@@ -99,7 +99,7 @@ function apiDownloadXlsx(token, kind, params) {
       spec = buildMealsExport_(p.ym); label = '급식_' + school + '_' + p.ym; break;
     default: throw new Error('알 수 없는 다운로드 종류');
   }
-  return { filename: _safeFilename(label) + '.xlsx', base64: buildXlsxBase64_(spec), mime: XLSX_MIME };
+  return { filename: safeFilename_(label) + '.xlsx', base64: buildXlsxBase64_(spec), mime: XLSX_MIME };
 }
 
 // ---------- 내보내기 내용 ----------

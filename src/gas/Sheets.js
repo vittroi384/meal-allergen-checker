@@ -128,13 +128,13 @@ function readStudents_() {
 
 /** 현재 학년도 반별 담임 맵 (학생 시트 "담임" 열에서 유추) */
 function teacherMap_(settings) {
-  var s = settings || readSettings();
+  var s = settings || readSettings_();
   return buildTeacherMapFromStudents(filterActiveStudents(readStudents_(), currentSchoolYear_(s)));
 }
 
 /** 판별 대상 학생 (활성 + 현재 학년도) — 반별 담임(teacher) 과 기타 키워드 동의어(keywordTerms) 를 붙여서 반환 */
 function readActiveStudents_(settings) {
-  var s = settings || readSettings();
+  var s = settings || readSettings_();
   var active = filterActiveStudents(readStudents_(), currentSchoolYear_(s));
   return expandStudentKeywords(attachTeachers(active, buildTeacherMapFromStudents(active)), parseKeywordList(s['기타알레르기목록']));
 }

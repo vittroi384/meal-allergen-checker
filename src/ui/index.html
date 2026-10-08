@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   SPA 껍데기. HtmlService 템플릿으로 서빙되며, 스타일·앱 코어·화면별 뷰 파일을
-  서버측 include() 스크립틀릿으로 이어붙여 한 페이지로 만든다.
+  서버측 include_() 스크립틀릿으로 이어붙여 한 페이지로 만든다.
   실제 화면 그리기는 전부 JS(App)가 담당하고, 이 파일은 마운트 지점(#app 등)만 제공한다.
 -->
 <html lang="ko">
@@ -9,7 +9,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>급식 알레르기 판별</title>
-  <?!= include('ui/styles.css') ?>
+  <?!= include_('ui/styles.css') ?>
 </head>
 <body>
   <!-- 앱 마운트 지점. 학교명은 서버 템플릿 값으로 미리 심어 부트 전 레이아웃에서도 쓴다 -->
@@ -18,17 +18,17 @@
   <div id="toast-root"></div>
   <div id="modal-root"></div>
   <!-- 로드 순서 중요: App 코어가 먼저, 그 다음 각 뷰가 App.views.X 로 자신을 등록 -->
-  <?!= include('ui/app.js') ?>
-  <?!= include('ui/views/dashboard.js') ?>
-  <?!= include('ui/views/calendar.js') ?>
-  <?!= include('ui/views/students.js') ?>
-  <?!= include('ui/views/student.js') ?>
-  <?!= include('ui/views/student_print.js') ?>
-  <?!= include('ui/views/meals.js') ?>
-  <?!= include('ui/views/settings.js') ?>
-  <?!= include('ui/views/logs.js') ?>
-  <?!= include('ui/views/print.js') ?>
-  <?!= include('ui/views/board.js') ?>
+  <?!= include_('ui/app.js') ?>
+  <?!= include_('ui/views/dashboard.js') ?>
+  <?!= include_('ui/views/calendar.js') ?>
+  <?!= include_('ui/views/students.js') ?>
+  <?!= include_('ui/views/student.js') ?>
+  <?!= include_('ui/views/student_print.js') ?>
+  <?!= include_('ui/views/meals.js') ?>
+  <?!= include_('ui/views/settings.js') ?>
+  <?!= include_('ui/views/logs.js') ?>
+  <?!= include_('ui/views/print.js') ?>
+  <?!= include_('ui/views/board.js') ?>
   <!-- 모든 뷰 등록이 끝난 뒤 시작: 인증 모드 확인 → 초기 라우트 결정 → 첫 화면 렌더 -->
   <script>App.start();</script>
 </body>

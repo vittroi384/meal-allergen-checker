@@ -30,7 +30,7 @@ function bumpDataVersion_() {
 }
 
 /** 버전 접두어를 붙인 실제 캐시 키. 버전이 바뀌면 이전 키들은 자연히 못 찾게 된다. */
-function _cacheKey(key) {
+function cacheKey_(key) {
   return 'v' + dataVersion_() + ':' + key;
 }
 
@@ -38,7 +38,7 @@ function _cacheKey(key) {
 function cacheGet_(key) {
   try {
     var c = cache_();
-    var k = _cacheKey(key);
+    var k = cacheKey_(key);
     var head = c.get(k);
     if (head === null || head === undefined) return null;
     // 머리값이 '#n' 이면 n개 조각으로 나뉘어 저장된 큰 값 — 조각을 모두 모아 복원
@@ -62,7 +62,7 @@ function cacheGet_(key) {
 function cachePut_(key, value) {
   try {
     var c = cache_();
-    var k = _cacheKey(key);
+    var k = cacheKey_(key);
     var str = JSON.stringify(value);
     if (str.length <= CACHE_CHUNK_CHARS) {
       c.put(k, str, CACHE_TTL_SECONDS);

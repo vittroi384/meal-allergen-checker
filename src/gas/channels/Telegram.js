@@ -8,18 +8,18 @@ var telegramChannel_ = {
   id: 'telegram',
   name: '텔레그램',
   isEnabled: function (settings) {
-    return settingBool_(settings, '채널_텔레그램') && hasSecret('TELEGRAM_BOT_TOKEN');
+    return settingBool_(settings, '채널_텔레그램') && hasSecret_('TELEGRAM_BOT_TOKEN');
   },
   /** 비활성 사유 (설정 화면 안내용). 활성 상태면 '' */
   disabledReason: function (settings) {
     if (!settingBool_(settings, '채널_텔레그램')) return '설정에서 꺼져 있음';
-    if (!hasSecret('TELEGRAM_BOT_TOKEN')) return '봇 토큰 미입력';
+    if (!hasSecret_('TELEGRAM_BOT_TOKEN')) return '봇 토큰 미입력';
     return '';
   },
   /** to: chat id */
   send: function (msg) {
     try {
-      var token = getSecret('TELEGRAM_BOT_TOKEN');
+      var token = getSecret_('TELEGRAM_BOT_TOKEN');
       var text = (msg.subject ? msg.subject + '\n\n' : '') + (msg.text || '');
       var chunks = [];
       // 긴 알림은 여러 통으로 분할 — 가급적 줄바꿈 경계에서 자르고, 적당한 위치가 없으면 그냥 4000자에서 자른다
@@ -51,7 +51,7 @@ var telegramChannel_ = {
 
 /** 봇에게 말을 건 사용자의 chat id 목록 (설정 화면 "chat id 찾기" 용) */
 function telegramRecentChats_() {
-  var token = getSecret('TELEGRAM_BOT_TOKEN');
+  var token = getSecret_('TELEGRAM_BOT_TOKEN');
   if (!token) return { ok: false, error: '봇 토큰 미입력', chats: [] };
   var res = UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/getUpdates', { muteHttpExceptions: true });
   var json;

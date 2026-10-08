@@ -11,7 +11,7 @@
  */
 function runSyncMonths_(yearMonths, opts) {
   var o = opts || {};
-  var settings = readSettings();
+  var settings = readSettings_();
   var mealTypes = managedMealTypes_(settings);
   var total = { mealsFetched: 0, mealsInserted: 0, mealsReplaced: 0, mealsUnchanged: 0, mealsRemoved: 0, mealsProtected: 0 };
   var protectedMeals = [];
@@ -27,7 +27,13 @@ function runSyncMonths_(yearMonths, opts) {
       var fetched = fetchMealsForRange_(range.start, range.end, mealTypes, settings);
       if (!fetched.ok) throw new Error(fetched.error);
       var existing = readMeals_();
-      var plan = calcSyncPlan(existing, fetched.rows, range, mealTypes);
+      var plan = calcSyncPlan(existing, fetched.rows, range, mealTypes, { noData: fetched.noData });
+      // NEIS 가 데이터 없음(INFO-200)을 돌려준 달은 기존 행을 지우지 않고 경고만 남긴다
+      if (fetched.noData && plan.keptMeals.length) {
+        var kept = ym + ': NEIS 데이터 없음(INFO-200) — 기존 급식 ' + plan.keptMeals.length + '끼니는 삭제하지 않고 유지';
+        console.warn(kept);
+        appendLog_({ kind: NOTICE_KINDS.SYSTEM, summary: kept, ok: true });
+      }
       deleteMealRows_(plan.deleteRows);
       appendMeals_(plan.insertRows);
       Object.keys(total).forEach(function (k) { total[k] += plan.stats[k] || 0; });
@@ -38,13 +44,13 @@ function runSyncMonths_(yearMonths, opts) {
       result.uncheckedCount += plan.insertRows.filter(function (r) { return !r.codes; }).length;
     });
     sortMealsSheet_();
-    setState('LAST_SYNC_AT', nowStr_());
-    setState('LAST_SYNC_RESULT', JSON.stringify({ ok: true, months: yearMonths, stats: total, byMonth: byMonth, at: nowStr_() }));
+    setState_('LAST_SYNC_AT', nowStr_());
+    setState_('LAST_SYNC_RESULT', JSON.stringify({ ok: true, months: yearMonths, stats: total, byMonth: byMonth, at: nowStr_() }));
     appendLog_({ kind: NOTICE_KINDS.SYNC_RESULT, summary: '동기화 완료 ' + yearMonths.join(',') + ' ' + JSON.stringify(total), ok: true });
   } catch (e) {
     result.ok = false;
     result.error = String(e.message || e);
-    setState('LAST_SYNC_RESULT', JSON.stringify({ ok: false, months: yearMonths, error: result.error, at: nowStr_() }));
+    setState_('LAST_SYNC_RESULT', JSON.stringify({ ok: false, months: yearMonths, error: result.error, at: nowStr_() }));
     appendLog_({ kind: NOTICE_KINDS.SYNC_RESULT, summary: '동기화 실패 ' + yearMonths.join(','), ok: false, error: result.error });
   }
 
@@ -70,7 +76,7 @@ function sortMealsSheet_() {
  * @returns { ok, inserted, error }
  */
 function revertMealToNeis_(date, mealType) {
-  var settings = readSettings();
+  var settings = readSettings_();
   var fetched = fetchMealsForRange_(date, date, [mealType], settings);
   if (!fetched.ok) return { ok: false, inserted: 0, error: fetched.error };
   var plan = calcRevertPlan(readMeals_(), fetched.rows, date, mealType);
@@ -83,7 +89,7 @@ function revertMealToNeis_(date, mealType) {
 
 /** 마지막 동기화 정보 (대시보드용) */
 function lastSyncInfo_() {
-  var raw = getState('LAST_SYNC_RESULT');
+  var raw = getState_('LAST_SYNC_RESULT');
   if (!raw) return null;
   try { return JSON.parse(raw); } catch (e) { return null; }
 }

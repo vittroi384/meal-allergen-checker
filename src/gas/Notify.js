@@ -80,7 +80,7 @@ function checkDate_(date, settings) {
  */
 function runStaffDaily_(opts) {
   var o = opts || {};
-  var settings = readSettings();
+  var settings = readSettings_();
   if (!o.force && !settingBool_(settings, '담당자일일알림')) return { sent: 0, summary: '담당자 일일 알림이 꺼져 있습니다' };
   var date = o.date || todayStr_();
   var byType = checkDate_(date, settings);
@@ -99,7 +99,7 @@ function runStaffDaily_(opts) {
 /** 담당자 주간 요약 (이번 주 월~일) */
 function runStaffWeekly_(opts) {
   var o = opts || {};
-  var settings = readSettings();
+  var settings = readSettings_();
   if (!o.force && !settingBool_(settings, '담당자주간알림')) return { sent: 0, summary: '주간 알림이 꺼져 있습니다' };
   var today = o.date || todayStr_();
   var wr = weekRange(today);
@@ -157,7 +157,7 @@ function planParentNotices_(settings, today) {
 function runParentNotices_(opts) {
   var o = opts || {};
   var started = Date.now();
-  var settings = readSettings();
+  var settings = readSettings_();
   if (!o.force && !settingBool_(settings, '학부모알림사용')) return { sent: 0, summary: '학부모 알림이 꺼져 있습니다' };
   var today = o.date || todayStr_();
   var plan = planParentNotices_(settings, today);
@@ -191,7 +191,7 @@ function runParentNotices_(opts) {
 
 /** 동기화 결과 담당자 알림 */
 function sendSyncResultNotice_(result) {
-  var settings = readSettings();
+  var settings = readSettings_();
   var msg = formatSyncResult({ ok: result.ok, schoolName: settings['학교명'], months: result.months, stats: result.stats,
     uncheckedCount: result.uncheckedCount, error: result.error, webAppUrl: webAppUrl_(settings) });
   return sendToStaff_(settings, NOTICE_KINDS.SYNC_RESULT, todayStr_(), msg, (result.months || []).join(',') + '|' + (result.ok ? 'ok' : 'err'));
@@ -199,7 +199,7 @@ function sendSyncResultNotice_(result) {
 
 /** 채널 테스트 발송 (설정 화면 버튼). to 가 없으면 담당자 첫 번째 연락처. */
 function sendTestNotice_(channelId, to) {
-  var settings = readSettings();
+  var settings = readSettings_();
   var ch = channelById_(channelId);
   if (!ch) return { ok: false, error: '알 수 없는 채널' };
   if (!ch.isEnabled(settings)) return { ok: false, error: '채널이 비활성 상태입니다: ' + (ch.disabledReason ? ch.disabledReason(settings) : '') };

@@ -11,13 +11,13 @@ function props_() {
 // ---------- 비밀값 ----------
 
 /** 비밀값 읽기. SECRET_KEYS 에 정의된 키만 허용, 미설정이면 '' 반환 */
-function getSecret(key) {
+function getSecret_(key) {
   if (SECRET_KEYS.indexOf(key) < 0) throw new Error('알 수 없는 비밀값 키: ' + key);
   return props_().getProperty(key) || '';
 }
 
 /** 비밀값 저장. 빈 값을 주면 키를 아예 삭제해 "미설정" 상태로 만든다 */
-function setSecret(key, value) {
+function setSecret_(key, value) {
   if (SECRET_KEYS.indexOf(key) < 0) throw new Error('알 수 없는 비밀값 키: ' + key);
   var v = value === undefined || value === null ? '' : String(value).trim();
   if (v) props_().setProperty(key, v);
@@ -25,26 +25,26 @@ function setSecret(key, value) {
 }
 
 /** 해당 비밀값이 설정되어 있는지 여부 (값 자체는 노출하지 않음) */
-function hasSecret(key) {
-  return getSecret(key) !== '';
+function hasSecret_(key) {
+  return getSecret_(key) !== '';
 }
 
 /** UI 용: 어떤 비밀값이 설정되어 있는지 (값은 절대 포함하지 않음) */
-function getSecretStatus() {
+function getSecretStatus_() {
   var out = {};
-  SECRET_KEYS.forEach(function (k) { out[k] = hasSecret(k); });
+  SECRET_KEYS.forEach(function (k) { out[k] = hasSecret_(k); });
   return out;
 }
 
 // ---------- 상태값 (비밀 아님) ----------
 
 /** 상태값 읽기 (마지막 동기화 시각, 배포 ID 등 비밀 아닌 내부 상태). 없으면 '' */
-function getState(key) {
+function getState_(key) {
   return props_().getProperty(key) || '';
 }
 
 /** 상태값 저장. 빈 값이면 키 삭제 */
-function setState(key, value) {
+function setState_(key, value) {
   var v = value === undefined || value === null ? '' : String(value);
   if (v) props_().setProperty(key, v);
   else props_().deleteProperty(key);
@@ -58,10 +58,10 @@ function setState(key, value) {
  */
 function webAppUrl_(settings) {
   // 1순위: 실제 웹 요청(doGet)에서 확인된 배포 ID — 가장 확실한 값
-  var id = getState('DEPLOYMENT_ID');
+  var id = getState_('DEPLOYMENT_ID');
   if (id) return buildWebAppUrl(id);
   // 2순위: 기록된 URL (setup/메뉴에서 getUrl() 로 얻은 값일 수 있음)
-  return normalizeWebAppUrl(getState('WEBAPP_URL') || (settings || readSettings())['웹앱URL'] || '');
+  return normalizeWebAppUrl(getState_('WEBAPP_URL') || (settings || readSettings_())['웹앱URL'] || '');
 }
 
 /**
@@ -74,13 +74,13 @@ function recordWebAppUrl_(fromWebRequest) {
   var seen = normalizeWebAppUrl(ScriptApp.getService().getUrl());
   if (fromWebRequest) {
     var id = extractDeploymentId(seen);
-    if (id && getState('DEPLOYMENT_ID') !== id) setState('DEPLOYMENT_ID', id);
+    if (id && getState_('DEPLOYMENT_ID') !== id) setState_('DEPLOYMENT_ID', id);
   }
   var url = webAppUrl_() || seen;
   if (!url) return '';
-  if (getState('WEBAPP_URL') !== url) {
-    setState('WEBAPP_URL', url);
-    writeSettings({ '웹앱URL': url });
+  if (getState_('WEBAPP_URL') !== url) {
+    setState_('WEBAPP_URL', url);
+    writeSettings_({ '웹앱URL': url });
   }
   return url;
 }
@@ -88,7 +88,7 @@ function recordWebAppUrl_(fromWebRequest) {
 // ---------- 설정 시트 ----------
 
 /** 설정 시트 → { 키: 값(문자열 또는 불리언) }. 없는 키는 기본값. 캐시됨(설정 변경 시 무효화). */
-function readSettings() {
+function readSettings_() {
   return cached_('settings', function () {
     var defaults = {};
     SETTING_DEFS.forEach(function (d) { defaults[d[0]] = d[1]; });
@@ -110,7 +110,7 @@ function readSettings() {
  * 설정 일부 저장. { 키: 값 }. 시트에 없는 키는 행을 추가한다.
  * 불리언 키는 체크박스 셀이므로 boolean 으로 기록.
  */
-function writeSettings(partial) {
+function writeSettings_(partial) {
   var sheet = ensureSheet_(SHEETS.SETTINGS, HEADERS.SETTINGS);
   var values = sheet.getDataRange().getValues();
   var rowByKey = {};
@@ -178,5 +178,5 @@ function nowStr_() {
 
 /** 현재 학년도 (설정 override 반영) */
 function currentSchoolYear_(settings) {
-  return calcSchoolYear(todayStr_(), (settings || readSettings())['학년도override']);
+  return calcSchoolYear(todayStr_(), (settings || readSettings_())['학년도override']);
 }

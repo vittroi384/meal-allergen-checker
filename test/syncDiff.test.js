@@ -38,6 +38,14 @@ test('new meal inserted, vanished meal removed', () => {
   assert.equal(plan.stats.mealsRemoved, 1);
 });
 
+test('empty NEIS response (noData) deletes nothing', () => {
+  const plan = core.calcSyncPlan([ex(2, '2026-09-01', '쌀밥', ''), ex(3, '2026-09-02', '국', '')], [], range, ['중식'], { noData: true });
+  assert.deepEqual(plan.deleteRows, []);
+  assert.deepEqual(plan.insertRows, []);
+  assert.equal(plan.stats.mealsRemoved, 0);
+  assert.deepEqual(plan.keptMeals, ['2026-09-01|중식', '2026-09-02|중식']);
+});
+
 test('manually edited meal is protected as a whole', () => {
   const plan = core.calcSyncPlan(
     [ex(2, '2026-09-01', '쌀밥', ''), ex(3, '2026-09-01', '돈까스', '6,10', { manualEdited: true })],

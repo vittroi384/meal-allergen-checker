@@ -21,14 +21,17 @@ function _menuSignature(rows) {
  * @param fetchedRows  NEIS 에서 받은 정규화 행 [{date, mealType, name, codes, raw}]
  * @param range { start, end } 'yyyy-MM-dd' 동기화 대상 기간
  * @param mealTypes 관리할 끼니 배열
+ * @param opts { noData } NEIS 가 INFO-200(데이터 없음)을 돌려준 경우 true — 기존 NEIS 행을 삭제하지 않고 keptMeals 로 보고만 한다
  * @returns {
  *   deleteRows: number[]        // 삭제할 시트 행 번호 (내림차순)
  *   insertRows: object[]        // 새로 넣을 행 (source=NEIS, manualEdited=false)
  *   protectedMeals: string[]    // 'date|mealType' 수동 보호로 건너뛴 끼니
+ *   keptMeals: string[]         // noData 로 삭제를 보류한 끼니
  *   stats: { mealsFetched, mealsInserted, mealsReplaced, mealsUnchanged, mealsRemoved, mealsProtected }
  * }
  */
-function calcSyncPlan(existingRows, fetchedRows, range, mealTypes) {
+function calcSyncPlan(existingRows, fetchedRows, range, mealTypes, opts) {
+  var noData = !!(opts && opts.noData);
   var allowed = mealTypes && mealTypes.length ? mealTypes : MEAL_TYPES;
   var inScope = function (r) {
     return r.date >= range.start && r.date <= range.end && allowed.indexOf(r.mealType) >= 0;
@@ -48,6 +51,7 @@ function calcSyncPlan(existingRows, fetchedRows, range, mealTypes) {
   var deleteRows = [];
   var insertRows = [];
   var protectedMeals = [];
+  var keptMeals = [];
   var stats = { mealsFetched: 0, mealsInserted: 0, mealsReplaced: 0, mealsUnchanged: 0, mealsRemoved: 0, mealsProtected: 0 };
 
   var allKeys = {};
@@ -65,6 +69,8 @@ function calcSyncPlan(existingRows, fetchedRows, range, mealTypes) {
       return;
     }
     if (!fe.length) {
+      // 응답 자체가 비어 있으면(INFO-200) "사라진 끼니"로 보지 않고 유지 — 일시 오류·미게시로 한 달치가 지워지는 것을 막는다
+      if (noData) { keptMeals.push(k); return; }
       // NEIS 에서 사라진 끼니 → 기존 NEIS 행 삭제
       ex.forEach(function (r) { deleteRows.push(r._row); });
       stats.mealsRemoved++;
@@ -85,7 +91,7 @@ function calcSyncPlan(existingRows, fetchedRows, range, mealTypes) {
   });
 
   deleteRows.sort(function (a, b) { return b - a; });
-  return { deleteRows: deleteRows, insertRows: insertRows, protectedMeals: protectedMeals, stats: stats };
+  return { deleteRows: deleteRows, insertRows: insertRows, protectedMeals: protectedMeals, keptMeals: keptMeals, stats: stats };
 }
 
 /**

@@ -48,12 +48,13 @@ function onEdit(e) {
  * 시트 메뉴에서 실행하면 결과를 알림창으로 보여준다.
  */
 function setup() {
+  requireSheetUi_();
   var report = [];
   ensureAllSheets_();
   bumpDataVersion_();
   report.push('시트 구조 확인/생성 완료 (학생, 급식, 알림로그, 설정, 학생_업로드템플릿)');
 
-  var settings = readSettings();
+  var settings = readSettings_();
   var created = setupTriggers_(settings);
   report.push('시간 트리거 ' + created + '개 등록 (기존 트리거 정리 후). 실제 실행 시각은 지정 시각 ±15분입니다.');
 
@@ -74,12 +75,25 @@ function setup() {
   }
   msg += '\n\n접속 비밀번호 모드: ' + _AUTH_MODE_LABEL[authMode_()] + ' (메뉴 → 접속 비밀번호 에서 변경)';
   msg += '\n\n다음 단계: 확장 프로그램 → Apps Script → 배포 → 새 배포(웹앱)로 URL 을 만든 뒤, 웹앱 설정 화면에서 NEIS 인증키와 학교를 등록하세요.';
-  _alert('초기 설정 완료', msg);
+  alert_('초기 설정 완료', msg);
   return msg;
 }
 
+/**
+ * 시트 메뉴 전용 함수(menu*, setup, dialog*)의 첫 줄 가드.
+ * Apps Script 는 이름 끝에 `_` 가 없는 전역 함수를 웹앱의 google.script.run 으로도 부를 수 있으므로,
+ * 시트 UI 를 얻을 수 없는 컨텍스트(웹앱·트리거)에서 호출되면 예외를 던져 즉시 종료한다.
+ */
+function requireSheetUi_() {
+  try {
+    SpreadsheetApp.getUi();
+  } catch (e) {
+    throw new Error('시트 메뉴에서만 실행할 수 있습니다');
+  }
+}
+
 /** 알림창 표시. UI 가 없는 컨텍스트(트리거·스크립트 에디터)에서는 콘솔 로그로 대체 */
-function _alert(title, msg) {
+function alert_(title, msg) {
   try {
     SpreadsheetApp.getUi().alert(title, msg, SpreadsheetApp.getUi().ButtonSet.OK);
   } catch (e) {
@@ -87,13 +101,13 @@ function _alert(title, msg) {
   }
 }
 
-/** 예/아니오 확인창. UI 없는 컨텍스트에서는 항상 "예"로 간주 */
-function _confirm(title, msg) {
+/** 예/아니오 확인창. UI 없는 컨텍스트에서는 "아니오"로 간주 (확인 없이 실행되지 않도록) */
+function confirm_(title, msg) {
   try {
     var ui = SpreadsheetApp.getUi();
     return ui.alert(title, msg, ui.ButtonSet.YES_NO) === ui.Button.YES;
   } catch (e) {
-    return true;
+    return false;
   }
 }
 
@@ -104,26 +118,26 @@ function ensureAllSheets_() {
   var ss = getSpreadsheet_();
 
   // 학생 (기존 시트는 열 구조 마이그레이션: 번호 제거, 담임이름·담임전화번호 삽입)
-  _migrateStudentColumns(ss.getSheetByName(SHEETS.STUDENTS));
+  migrateStudentColumns_(ss.getSheetByName(SHEETS.STUDENTS));
   var st = ensureSheet_(SHEETS.STUDENTS, HEADERS.STUDENTS);
-  _applyStudentValidations(st);
+  applyStudentValidations_(st);
 
   // 급식
   var ml = ensureSheet_(SHEETS.MEALS, HEADERS.MEALS);
-  _applyMealValidations(ml);
+  applyMealValidations_(ml);
 
   // 알림로그
   var lg = ensureSheet_(SHEETS.LOGS, HEADERS.LOGS);
 
   // 설정
   var sg = ensureSheet_(SHEETS.SETTINGS, HEADERS.SETTINGS);
-  _seedSettings(sg);
+  seedSettings_(sg);
 
   // 템플릿
-  _migrateStudentColumns(ss.getSheetByName(SHEETS.TEMPLATE));
+  migrateStudentColumns_(ss.getSheetByName(SHEETS.TEMPLATE));
   var tp = ensureSheet_(SHEETS.TEMPLATE, HEADERS.STUDENTS);
-  _applyStudentValidations(tp);
-  _applyTemplateNotes(tp);
+  applyStudentValidations_(tp);
+  applyTemplateNotes_(tp);
 
   // 기본 Sheet1 제거 (비어 있을 때만)
   ['Sheet1', '시트1'].forEach(function (n) {
@@ -144,40 +158,40 @@ function ensureAllSheets_() {
 }
 
 /** 헤더명 → 1-based 열 번호 (없으면 undefined) */
-function _col(sheet, header) {
+function col_(sheet, header) {
   return headerIndex_(sheet)[header];
 }
 
 /** 해당 헤더 열의 본문 범위(2행~마지막 행). 열이 없으면 null */
-function _bodyRange(sheet, header) {
-  var col = _col(sheet, header);
+function bodyRange_(sheet, header) {
+  var col = col_(sheet, header);
   if (!col) return null;
   return sheet.getRange(2, col, Math.max(1, sheet.getMaxRows() - 1), 1);
 }
 
 /** 학생/템플릿 시트에 입력 유효성 규칙 적용: 학년·반 숫자, 알레르기코드 형식, 알림방식 목록, 사용여부 체크박스 */
-function _applyStudentValidations(sheet) {
+function applyStudentValidations_(sheet) {
   var dv = SpreadsheetApp.newDataValidation;
   var r;
   // 열 이동/삽입으로 어긋난 채 남은 옛 규칙 제거 (예: 학년의 1~6 규칙이 반 열에 남는 경우)
   sheet.getRange(2, 1, Math.max(1, sheet.getMaxRows() - 1), sheet.getMaxColumns()).clearDataValidations();
-  if ((r = _bodyRange(sheet, '학년'))) r.setDataValidation(dv().requireNumberGreaterThanOrEqualTo(1).setAllowInvalid(false).setHelpText('1 이상 숫자').build());
-  if ((r = _bodyRange(sheet, '반'))) r.setDataValidation(dv().requireNumberGreaterThanOrEqualTo(1).setAllowInvalid(false).build());
-  if ((r = _bodyRange(sheet, '담임전화번호'))) r.setNumberFormat('@');
-  if ((r = _bodyRange(sheet, '학년도'))) r.setDataValidation(dv().requireNumberBetween(2000, 2100).setAllowInvalid(true).setHelpText('예: 2026 (비우면 현재 학년도)').build());
-  if ((r = _bodyRange(sheet, '알레르기코드'))) {
+  if ((r = bodyRange_(sheet, '학년'))) r.setDataValidation(dv().requireNumberGreaterThanOrEqualTo(1).setAllowInvalid(false).setHelpText('1 이상 숫자').build());
+  if ((r = bodyRange_(sheet, '반'))) r.setDataValidation(dv().requireNumberGreaterThanOrEqualTo(1).setAllowInvalid(false).build());
+  if ((r = bodyRange_(sheet, '담임전화번호'))) r.setNumberFormat('@');
+  if ((r = bodyRange_(sheet, '학년도'))) r.setDataValidation(dv().requireNumberBetween(2000, 2100).setAllowInvalid(true).setHelpText('예: 2026 (비우면 현재 학년도)').build());
+  if ((r = bodyRange_(sheet, '알레르기코드'))) {
     r.setNumberFormat('@');
     var a1 = r.getCell(1, 1).getA1Notation();
     r.setDataValidation(dv().requireFormulaSatisfied('=OR(' + a1 + '="", REGEXMATCH(TO_TEXT(' + a1 + '), "^[0-9,. ]+$"))')
       .setAllowInvalid(true).setHelpText('1~19 번호를 쉼표로 구분 (예: 1,2,6)').build());
   }
-  if ((r = _bodyRange(sheet, '학부모연락처'))) r.setNumberFormat('@');
-  if ((r = _bodyRange(sheet, '학부모알림'))) r.setDataValidation(dv().requireValueInList(PARENT_NOTIFY_VALUES, true).setAllowInvalid(false).build());
-  if ((r = _bodyRange(sheet, '사용여부'))) r.setDataValidation(dv().requireCheckbox().build());
+  if ((r = bodyRange_(sheet, '학부모연락처'))) r.setNumberFormat('@');
+  if ((r = bodyRange_(sheet, '학부모알림'))) r.setDataValidation(dv().requireValueInList(PARENT_NOTIFY_VALUES, true).setAllowInvalid(false).build());
+  if ((r = bodyRange_(sheet, '사용여부'))) r.setDataValidation(dv().requireCheckbox().build());
 }
 
 /** 기존 시트에 header 열이 없으면 afterHeader 열 바로 뒤에 삽입 (새 시트는 ensureSheet_ 가 전체 헤더를 쓰므로 건너뜀) */
-function _ensureColumnAfter(sheet, header, afterHeader) {
+function ensureColumnAfter_(sheet, header, afterHeader) {
   if (!sheet || sheet.getLastRow() === 0) return;
   var idx = headerIndex_(sheet);
   if (idx[header] || !idx[afterHeader]) return;
@@ -191,7 +205,7 @@ function _ensureColumnAfter(sheet, header, afterHeader) {
  *  - '번호' 열 삭제 (식별키가 학년+반+이름으로 바뀜)
  *  - '담임이름' 을 이름 뒤에, '담임전화번호' 를 담임이름 뒤에 삽입
  */
-function _migrateStudentColumns(sheet) {
+function migrateStudentColumns_(sheet) {
   if (!sheet || sheet.getLastRow() === 0) return;
   var idx = headerIndex_(sheet);
   if (idx['담임'] && !idx['담임이름']) {
@@ -201,28 +215,28 @@ function _migrateStudentColumns(sheet) {
   if (idx['번호']) {
     sheet.deleteColumn(idx['번호']);
   }
-  _ensureColumnAfter(sheet, '담임이름', '이름');
-  _ensureColumnAfter(sheet, '담임전화번호', '담임이름');
+  ensureColumnAfter_(sheet, '담임이름', '이름');
+  ensureColumnAfter_(sheet, '담임전화번호', '담임이름');
 }
 
 /** 급식 시트에 입력 유효성 규칙 적용: 날짜 yyyy-MM-dd 형식, 식사구분·출처 목록, 수동수정 체크박스 */
-function _applyMealValidations(sheet) {
+function applyMealValidations_(sheet) {
   var dv = SpreadsheetApp.newDataValidation;
   var r;
-  if ((r = _bodyRange(sheet, '날짜'))) {
+  if ((r = bodyRange_(sheet, '날짜'))) {
     r.setNumberFormat('@');
     var a1 = r.getCell(1, 1).getA1Notation();
     r.setDataValidation(dv().requireFormulaSatisfied('=OR(' + a1 + '="", REGEXMATCH(TO_TEXT(' + a1 + '), "^\\d{4}-\\d{2}-\\d{2}$"))')
       .setAllowInvalid(true).setHelpText('yyyy-MM-dd 형식 (예: 2026-09-01)').build());
   }
-  if ((r = _bodyRange(sheet, '식사구분'))) r.setDataValidation(dv().requireValueInList(MEAL_TYPES, true).setAllowInvalid(false).build());
-  if ((r = _bodyRange(sheet, '알레르기코드'))) r.setNumberFormat('@');
-  if ((r = _bodyRange(sheet, '출처'))) r.setDataValidation(dv().requireValueInList([SOURCES.NEIS, SOURCES.MANUAL], true).setAllowInvalid(false).build());
-  if ((r = _bodyRange(sheet, '수동수정여부'))) r.setDataValidation(dv().requireCheckbox().build());
+  if ((r = bodyRange_(sheet, '식사구분'))) r.setDataValidation(dv().requireValueInList(MEAL_TYPES, true).setAllowInvalid(false).build());
+  if ((r = bodyRange_(sheet, '알레르기코드'))) r.setNumberFormat('@');
+  if ((r = bodyRange_(sheet, '출처'))) r.setDataValidation(dv().requireValueInList([SOURCES.NEIS, SOURCES.MANUAL], true).setAllowInvalid(false).build());
+  if ((r = bodyRange_(sheet, '수동수정여부'))) r.setDataValidation(dv().requireCheckbox().build());
 }
 
 /** 설정 시트에 SETTING_DEFS 의 기본 키가 없으면 추가하고, 값 셀 서식(체크박스/텍스트)을 맞춘다 */
-function _seedSettings(sheet) {
+function seedSettings_(sheet) {
   var values = sheet.getDataRange().getValues();
   var have = {};
   for (var i = 1; i < values.length; i++) {
@@ -252,7 +266,7 @@ function _seedSettings(sheet) {
 }
 
 /** 업로드 템플릿 시트의 헤더 셀에 작성 안내 메모를 달고 탭 색으로 구분 */
-function _applyTemplateNotes(sheet) {
+function applyTemplateNotes_(sheet) {
   var idx = headerIndex_(sheet);
   var notes = {
     '학년도': '비우면 현재 학년도로 채워집니다',
@@ -312,14 +326,15 @@ function listOurTriggers_() {
 
 /** 시트 메뉴: 공유용 웹앱 URL 을 링크 대화상자로 보여준다 */
 function menuOpenWebApp() {
+  requireSheetUi_();
   // 실제 웹 요청(doGet)에서 확인된 배포 ID 로 만든 표준 주소를 우선 사용. 메뉴 컨텍스트의 getUrl() 은 HEAD 배포를 가리킬 수 있어 폴백으로만.
   var url = '';
   try { url = recordWebAppUrl_(false); } catch (e) { /* 배포 전 */ }
   if (!url) {
-    _alert('웹앱 URL 없음', '아직 웹앱이 배포되지 않았습니다.\n확장 프로그램 → Apps Script → 배포 → 새 배포 → 유형 "웹 앱" 으로 배포한 뒤, 웹앱에 한 번 접속하면 URL 이 자동 기록됩니다.');
+    alert_('웹앱 URL 없음', '아직 웹앱이 배포되지 않았습니다.\n확장 프로그램 → Apps Script → 배포 → 새 배포 → 유형 "웹 앱" 으로 배포한 뒤, 웹앱에 한 번 접속하면 URL 이 자동 기록됩니다.');
     return;
   }
-  var deploymentId = getState('DEPLOYMENT_ID');
+  var deploymentId = getState_('DEPLOYMENT_ID');
   var note = deploymentId
     ? '배포 ID <code>' + deploymentId + '</code> (웹앱 접속 시 확인된 값). 조직 계정 여부와 관계없이 열리는 표준 주소(<code>/macros/s/…/exec</code>)입니다.'
     : '⚠ 아직 웹앱 접속으로 확인된 배포 ID 가 없어 추정 주소입니다. 이 링크를 한 번 연 뒤 메뉴를 다시 열면 확정됩니다.';
@@ -332,14 +347,14 @@ function menuOpenWebApp() {
 }
 
 // 시트 메뉴(접속 비밀번호 하위): 인증 모드 3종 전환
-function menuAuthOff() { _setAuthModeFromMenu('off'); }
-function menuAuthSettings() { _setAuthModeFromMenu('settings'); }
-function menuAuthOn() { _setAuthModeFromMenu('on'); }
+function menuAuthOff() { requireSheetUi_(); setAuthModeFromMenu_('off'); }
+function menuAuthSettings() { requireSheetUi_(); setAuthModeFromMenu_('settings'); }
+function menuAuthOn() { requireSheetUi_(); setAuthModeFromMenu_('on'); }
 
 var _AUTH_MODE_LABEL = { off: '사용 안 함 (링크만 있으면 누구나 접속)', settings: '설정 탭만 잠금', on: '전체 잠금 (로그인 필요)' };
 
 /** 인증 모드를 저장하고 안내문 표시. 잠금 모드인데 비밀번호가 없으면 새로 만들어 1회만 보여준다 */
-function _setAuthModeFromMenu(mode) {
+function setAuthModeFromMenu_(mode) {
   var msg = '접속 비밀번호 모드: ' + _AUTH_MODE_LABEL[mode] + '\n\n';
   if (mode === 'off') {
     msg += '웹앱 URL 을 아는 사람은 누구나 모든 화면을 볼 수 있습니다. 학생 정보가 있으므로 URL 공유에 주의하세요.';
@@ -355,104 +370,111 @@ function _setAuthModeFromMenu(mode) {
     msg += '\n\n★ 비밀번호가 없어 새로 만들었습니다 (이 창에서만 1회 표시):\n\n    ' + pw;
   }
   msg += '\n\n웹앱은 새로고침하면 바로 적용됩니다 (재배포 불필요).';
-  _alert('접속 비밀번호 설정', msg);
+  alert_('접속 비밀번호 설정', msg);
 }
 
 /** 시트 메뉴: 접속 비밀번호를 새로 만들고 기존 로그인 세션을 모두 종료 */
 function menuResetPassword() {
-  if (!_confirm('접속 비밀번호 재설정', '새 비밀번호를 만들고 기존 로그인 세션을 모두 종료합니다. 계속할까요?')) return;
+  requireSheetUi_();
+  if (!confirm_('접속 비밀번호 재설정', '새 비밀번호를 만들고 기존 로그인 세션을 모두 종료합니다. 계속할까요?')) return;
   var pw = generatePassword_(10);
   setPassword_(pw);
-  _alert('새 접속 비밀번호', '★ 새 비밀번호 (이 창에서만 1회 표시):\n\n    ' + pw + '\n\n웹앱 설정 화면에서 원하는 비밀번호로 바꿀 수 있습니다.');
+  alert_('새 접속 비밀번호', '★ 새 비밀번호 (이 창에서만 1회 표시):\n\n    ' + pw + '\n\n웹앱 설정 화면에서 원하는 비밀번호로 바꿀 수 있습니다.');
 }
 
 /** 시트 메뉴: 자동 동기화/알림 트리거를 모두 해제. 다른 계정으로 이관한 뒤 구 계정에서 쓰는 용도 */
 function menuRemoveAllTriggers() {
-  if (!_confirm('트리거 모두 해제', '이 계정에 등록된 자동 동기화/알림 트리거를 모두 해제합니다.\n' +
+  requireSheetUi_();
+  if (!confirm_('트리거 모두 해제', '이 계정에 등록된 자동 동기화/알림 트리거를 모두 해제합니다.\n' +
     '다른 계정으로 이관한 뒤 구 계정에서 실행하는 용도입니다. 계속할까요?')) return;
   var n = removeOurTriggers_();
-  _alert('완료', n + '개의 트리거를 해제했습니다. 이 시트에서는 더 이상 자동 동기화/알림이 실행되지 않습니다.\n다시 켜려면 "초기 설정"을 실행하세요.');
+  alert_('완료', n + '개의 트리거를 해제했습니다. 이 시트에서는 더 이상 자동 동기화/알림이 실행되지 않습니다.\n다시 켜려면 "초기 설정"을 실행하세요.');
 }
 
 /** NEIS 인증키 입력 (유효성 확인 후 Script Properties 에 저장) */
 function menuSetNeisKey() {
+  requireSheetUi_();
   var ui = SpreadsheetApp.getUi();
-  var status = hasSecret('NEIS_API_KEY') ? '현재: 설정됨 (새 키를 입력하면 교체됩니다)' : '현재: 미설정';
-  var res = ui.prompt('NEIS 인증키 입력', status + '\n\nopen.neis.go.kr 에서 발급받은 인증키를 붙여넣으세요.\n(키는 시트가 아니라 스크립트 속성에 암호화 저장되며 어디에도 표시되지 않습니다)', ui.ButtonSet.OK_CANCEL);
+  var status = hasSecret_('NEIS_API_KEY') ? '현재: 설정됨 (새 키를 입력하면 교체됩니다)' : '현재: 미설정';
+  var res = ui.prompt('NEIS 인증키 입력', status + '\n\nopen.neis.go.kr 에서 발급받은 인증키를 붙여넣으세요.\n(키는 시트가 아니라 스크립트 속성에 저장되며 화면에 표시되지 않습니다)', ui.ButtonSet.OK_CANCEL);
   if (res.getSelectedButton() !== ui.Button.OK) return;
   var key = String(res.getResponseText() || '').trim();
-  if (!key) { _alert('취소됨', '입력된 키가 없습니다.'); return; }
+  if (!key) { alert_('취소됨', '입력된 키가 없습니다.'); return; }
   var test;
   try { test = testNeisKey_(key); } catch (e) { test = { ok: false, error: String(e.message || e) }; }
   if (!test.ok) {
-    _alert('인증키 확인 실패', '저장하지 않았습니다.\n\n' + test.error + '\n\n키를 다시 확인하세요. (발급 직후에는 몇 분 걸릴 수 있습니다)');
+    alert_('인증키 확인 실패', '저장하지 않았습니다.\n\n' + test.error + '\n\n키를 다시 확인하세요. (발급 직후에는 몇 분 걸릴 수 있습니다)');
     return;
   }
-  setSecret('NEIS_API_KEY', key);
-  _alert('저장 완료', 'NEIS 인증키가 유효하며 저장되었습니다.\n다음: 메뉴 → "학교 검색·선택"');
+  setSecret_('NEIS_API_KEY', key);
+  alert_('저장 완료', 'NEIS 인증키가 유효하며 저장되었습니다.\n다음: 메뉴 → "학교 검색·선택"');
 }
 
 /** 학교 검색 → 번호 선택 → 설정 저장 */
 function menuSelectSchool() {
+  requireSheetUi_();
   var ui = SpreadsheetApp.getUi();
-  var settings = readSettings();
+  var settings = readSettings_();
   var cur = settings['학교명'] ? '현재: ' + settings['학교명'] + ' (' + settings['시도교육청코드'] + '/' + settings['학교코드'] + ')\n\n' : '';
   var res = ui.prompt('학교 검색', cur + '학교명을 입력하세요 (예: 대치초, 서울대치초등학교)', ui.ButtonSet.OK_CANCEL);
   if (res.getSelectedButton() !== ui.Button.OK) return;
   var r;
   try { r = searchSchools_(res.getResponseText()); } catch (e) { r = { ok: false, error: String(e.message || e), schools: [] }; }
-  if (!r.ok) { _alert('검색 실패', r.error); return; }
-  if (!r.schools.length) { _alert('검색 결과 없음', '다른 이름으로 다시 검색하세요.'); return; }
+  if (!r.ok) { alert_('검색 실패', r.error); return; }
+  if (!r.schools.length) { alert_('검색 결과 없음', '다른 이름으로 다시 검색하세요.'); return; }
   var list = r.schools.slice(0, 15);
   var lines = list.map(function (s, i) { return (i + 1) + '. ' + s.name + ' — ' + s.kind + ', ' + s.atptName + '\n    ' + s.address; });
   var pick = ui.prompt('학교 선택 (' + r.schools.length + '건' + (r.schools.length > 15 ? ', 상위 15건 표시' : '') + ')',
     lines.join('\n') + '\n\n번호를 입력하세요:', ui.ButtonSet.OK_CANCEL);
   if (pick.getSelectedButton() !== ui.Button.OK) return;
   var n = parseInt(pick.getResponseText(), 10);
-  if (!(n >= 1 && n <= list.length)) { _alert('취소됨', '올바른 번호가 아닙니다.'); return; }
+  if (!(n >= 1 && n <= list.length)) { alert_('취소됨', '올바른 번호가 아닙니다.'); return; }
   var s = list[n - 1];
-  writeSettings({ '학교명': s.name, '시도교육청코드': s.atptCode, '학교코드': s.schoolCode });
-  _alert('학교 저장 완료', s.name + ' (' + s.atptCode + ' / ' + s.schoolCode + ')\n\n다음: 메뉴 → "지금 급식 동기화"');
+  writeSettings_({ '학교명': s.name, '시도교육청코드': s.atptCode, '학교코드': s.schoolCode });
+  alert_('학교 저장 완료', s.name + ' (' + s.atptCode + ' / ' + s.schoolCode + ')\n\n다음: 메뉴 → "지금 급식 동기화"');
 }
 
 /** 시트 메뉴: 이번 달 + 다음 달 급식을 즉시 동기화하고 결과를 알림창으로 표시 */
 function menuSyncNow() {
-  if (typeof runSyncMonths_ !== 'function') { _alert('준비 중', '동기화 기능은 아직 배포되지 않았습니다.'); return; }
+  requireSheetUi_();
+  if (typeof runSyncMonths_ !== 'function') { alert_('준비 중', '동기화 기능은 아직 배포되지 않았습니다.'); return; }
   var ym = yearMonthOf(todayStr_());
   try {
     var r = runSyncMonths_([ym, addMonths(ym, 1)], { notify: false });
-    _alert('동기화 결과', formatSyncResult(Object.assign({ schoolName: readSettings()['학교명'] }, r)).text);
+    alert_('동기화 결과', formatSyncResult(Object.assign({ schoolName: readSettings_()['학교명'] }, r)).text);
   } catch (e) {
-    _alert('동기화 실패', String(e.message || e));
+    alert_('동기화 실패', String(e.message || e));
   }
 }
 
 /** 시트 메뉴: 오늘 담당자 알림을 강제(테스트 모드)로 발송해 채널 설정을 점검 */
 function menuTestDailyNotice() {
-  if (typeof runStaffDaily_ !== 'function') { _alert('준비 중', '알림 기능은 아직 배포되지 않았습니다.'); return; }
+  requireSheetUi_();
+  if (typeof runStaffDaily_ !== 'function') { alert_('준비 중', '알림 기능은 아직 배포되지 않았습니다.'); return; }
   try {
     var r = runStaffDaily_({ force: true, test: true });
-    _alert('테스트 발송 결과', r.summary || JSON.stringify(r));
+    alert_('테스트 발송 결과', r.summary || JSON.stringify(r));
   } catch (e) {
-    _alert('발송 실패', String(e.message || e));
+    alert_('발송 실패', String(e.message || e));
   }
 }
 
 /** 템플릿 시트 → 학생 병합 (검증 실패 시 전체 반려) */
 function menuApplyTemplate() {
+  requireSheetUi_();
   var tp = getSheet_(SHEETS.TEMPLATE);
-  if (tp.getLastRow() < 2) { _alert('템플릿 비어 있음', '학생_업로드템플릿 시트 2행부터 학생을 붙여넣은 뒤 실행하세요.'); return; }
+  if (tp.getLastRow() < 2) { alert_('템플릿 비어 있음', '학생_업로드템플릿 시트 2행부터 학생을 붙여넣은 뒤 실행하세요.'); return; }
   var values = tp.getRange(1, 1, tp.getLastRow(), tp.getLastColumn()).getValues();
   var plan = calcStudentMergePlan(tableToObjects(values, FIELD_MAP.STUDENTS), readStudents_(), currentSchoolYear_());
   if (!plan.ok) {
     var errs = plan.rows.filter(function (r) { return r.status === '오류'; }).slice(0, 15)
       .map(function (r) { return r._row + '행: ' + r.errors.join('; '); });
-    _alert('반영 안 됨 — 오류 ' + plan.summary.error + '건',
+    alert_('반영 안 됨 — 오류 ' + plan.summary.error + '건',
       '오류를 고친 뒤 다시 실행하세요. (전체 반려)\n\n' + errs.join('\n') + (plan.summary.error > 15 ? '\n… 외 ' + (plan.summary.error - 15) + '건' : ''));
     return;
   }
-  if (!_confirm('학생 반영', '추가 ' + plan.summary.add + '명, 수정 ' + plan.summary.update + '명, 변경 없음 ' + plan.summary.unchanged + '명.\n반영할까요? (삭제는 하지 않습니다)')) return;
+  if (!confirm_('학생 반영', '추가 ' + plan.summary.add + '명, 수정 ' + plan.summary.update + '명, 변경 없음 ' + plan.summary.unchanged + '명.\n반영할까요? (삭제는 하지 않습니다)')) return;
   var res = applyStudentMergePlan_(plan);
   tp.getRange(2, 1, tp.getMaxRows() - 1, tp.getMaxColumns()).clearContent();
-  _alert('반영 완료', '추가 ' + res.added + '명, 수정 ' + res.updated + '명. 템플릿 시트를 비웠습니다.');
+  alert_('반영 완료', '추가 ' + res.added + '명, 수정 ' + res.updated + '명. 템플릿 시트를 비웠습니다.');
 }

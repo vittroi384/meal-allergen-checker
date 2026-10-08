@@ -1,7 +1,7 @@
 # 급식 알레르기 판별 시스템 — 요구사항 명세 (SPEC)
 
-> 최종 수정: 2026-08-31
-> 상태: 초안 (구현 전 확정용)
+> 최종 수정: 2026-09-21
+> 상태: 운영 반영본
 
 ## 1. 목적
 
@@ -29,7 +29,7 @@
 ### 설계 원칙
 - **순수 로직 분리**: 메뉴 파싱, 알레르기 판별, 알림 문구 생성은 Apps Script 전역 객체
   (`SpreadsheetApp`, `UrlFetchApp`, `MailApp` 등)에 **의존하지 않는** 순수 함수로 작성.
-  같은 파일이 Apps Script 와 Node 양쪽에서 동작해야 함 (UMD 스타일 export 가드).
+  같은 파일이 Apps Script 와 Node 양쪽에서 동작해야 함 (전역 스코프 로더 `test/helpers/loadCore.js` 로 Node 에서 같은 파일을 로드).
 - **비밀값은 코드에 없음**: NEIS 인증키, 문자 API 키, 텔레그램 토큰, 접속 비밀번호는
   `PropertiesService.getScriptProperties()` 에만 저장. 설정 화면에서 입력받음.
   `.clasp.json` 은 `.gitignore` 에 포함.
@@ -124,7 +124,7 @@
 | 주말·공휴일알림 | `FALSE` | 급식 없는 날은 스킵 |
 | 웹앱URL | | 배포 후 자동 기록 (알림 링크용) |
 
-- 비밀값(Script Properties, 시트에 저장 안 함): `NEIS_API_KEY`, `SMS_API_KEY`, `SMS_API_SECRET`,
+- 비밀값(Script Properties, 시트에 저장 안 함): `NEIS_API_KEY`, `SMS_API_KEY`, `SMS_USER_ID`, `SMS_API_SECRET`,
   `TELEGRAM_BOT_TOKEN`, `APP_PASSWORD_HASH`, `APP_PASSWORD_SALT`.
 
 ### 3.5 학생 일괄 업로드 (엑셀 연동)
@@ -245,7 +245,7 @@
 ### 7.2 담당자 알림 (기본 ON)
 - **일일 요약**: 매일 `담당자알림시간`(±15분) 에 1통. 내용:
   1. 오늘 메뉴 + 알레르기 번호(명칭 병기)
-  2. 해당 학생 목록 (학년-반-번호 이름 — 문제 메뉴(원인))
+  2. 해당 학생 목록 (학년-반 이름 — 문제 메뉴(원인))
   3. 알레르기 표시 없는 메뉴("확인 필요") 목록
   4. 웹앱 링크
   - 급식 데이터가 없는 날(주말·방학·공휴일)은 `주말·공휴일알림=FALSE` 면 발송 안 함.
@@ -302,7 +302,7 @@
   - `off` (기본): 로그인 없이 바로 대시보드.
   - `settings`: 대시보드·달력·학생·급식·인쇄·로그는 자유, **설정 탭(설정 계열 API)만** 비밀번호.
   - `on`: 전체 로그인 필요.
-  - 서버는 `requireSession(token, level)` 로 판정 — 설정 계열 API 는 `level='admin'`. 모드 변경은 재배포 없이 즉시 적용.
+  - 서버는 `requireSession_(token, level)` 로 판정 — 설정 계열 API 는 `level='admin'`. 모드 변경은 재배포 없이 즉시 적용.
 - **웹앱 URL 고정**: 최초 1회 `clasp deploy -d "v1"` 로 배포 ID 를 얻은 뒤, 이후 업데이트는 항상
   `clasp deploy -i <deploymentId> -d "설명"` 로 **같은 배포 ID 에 재배포**. 새 배포를 만들면 URL 이 바뀜.
   README 와 `deploy` npm 스크립트에 명시. 배포 ID 는 `.clasp.json` 옆 `.deployment-id`(gitignore) 에 보관.

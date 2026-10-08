@@ -7,7 +7,7 @@
  * 수정/추가 모두 수동수정여부=TRUE (해당 끼니는 이후 동기화에서 보호됨).
  */
 function apiSaveMenu(token, m) {
-  requireSession(token);
+  requireSession_(token);
   if (!isValidDateStr(m.date)) throw new Error('날짜 형식 오류');
   if (MEAL_TYPES.indexOf(m.mealType) < 0) throw new Error('식사구분 오류');
   var name = String(m.name || '').trim();
@@ -24,12 +24,12 @@ function apiSaveMenu(token, m) {
   } else {
     appendMeals_([{ date: m.date, mealType: m.mealType, name: name, codes: codesStr, source: SOURCES.MANUAL, manualEdited: true, raw: '', checkedAt: codesStr === CODES_CHECKED_NONE ? nowStr_().slice(0, 16) : '' }]);
   }
-  _protectMeal(m.date, m.mealType);
+  protectMeal_(m.date, m.mealType);
   return { ok: true };
 }
 
 /** 같은 끼니의 나머지 행도 수동수정여부=TRUE 로 (끼니 단위 보호 일관성). 열 전체를 한 번에 읽고 한 번에 쓴다. */
-function _protectMeal(date, mealType) {
+function protectMeal_(date, mealType) {
   var sheet = getSheet_(SHEETS.MEALS);
   var col = headerIndex_(sheet)['수동수정여부'];
   var n = sheet.getLastRow() - 1;
@@ -46,35 +46,35 @@ function _protectMeal(date, mealType) {
 
 /** 메뉴 1행 삭제(웹앱). 삭제 후 같은 끼니를 보호 처리해 다음 동기화가 다시 덮어쓰지 않게 한다. */
 function apiDeleteMenu(token, row) {
-  requireSession(token);
+  requireSession_(token);
   var target = readMeals_().filter(function (x) { return x._row === row; })[0];
   if (!target) throw new Error('삭제할 메뉴를 찾지 못했습니다');
   deleteMealRows_([row]);
-  _protectMeal(target.date, target.mealType);
+  protectMeal_(target.date, target.mealType);
   return { ok: true };
 }
 
 /** 확인 처리: checked=true → 알레르기코드 '-' (없음 확인됨), false → 빈칸(다시 확인 필요) */
 function apiMarkMenuChecked(token, row, checked) {
-  requireSession(token);
+  requireSession_(token);
   var target = readMeals_().filter(function (x) { return x._row === row; })[0];
   if (!target) throw new Error('메뉴를 찾지 못했습니다');
   if (target.codes.length) throw new Error('알레르기 코드가 있는 메뉴는 확인 처리 대상이 아닙니다');
   // 확인 시각은 문자열로 기록 (시트가 날짜로 자동 변환해도 읽을 때 cellToDateTimeStr_ 로 복원)
   updateObjectRow_(SHEETS.MEALS, row, HEADERS.MEALS, FIELD_MAP.MEALS, { codes: checked ? CODES_CHECKED_NONE : '', manualEdited: true, checkedAt: checked ? nowStr_().slice(0, 16) : '' });
-  _protectMeal(target.date, target.mealType);
+  protectMeal_(target.date, target.mealType);
   return { ok: true };
 }
 
 /** 수동 수정된 끼니를 NEIS 원본으로 되돌리기(웹앱). 실제 처리는 Sync 쪽 revertMealToNeis_. */
 function apiRevertMeal(token, date, mealType) {
-  requireSession(token);
+  requireSession_(token);
   return revertMealToNeis_(date, mealType);
 }
 
 /** 선택한 월들(yyyy-MM)을 NEIS 와 수동 동기화(웹앱). 결과 알림은 보내지 않는다. */
 function apiSyncMonths(token, months) {
-  requireSession(token);
+  requireSession_(token);
   var list = (months || []).filter(function (m) { return /^\d{4}-\d{2}$/.test(m); });
   if (!list.length) throw new Error('동기화할 월을 선택하세요');
   // 트리거 자동 동기화 등과 겹치지 않게 스크립트 락 사용 (5초 안에 못 얻으면 포기)
@@ -89,7 +89,7 @@ function apiSyncMonths(token, months) {
 
 /** 급식 관리 화면용 월 요약: 데이터 있는 날 수, 보호 끼니, 확인 필요 메뉴 */
 function apiMealsOverview(token, ym) {
-  requireSession(token);
+  requireSession_(token);
   var range = monthRange(ym);
   var meals = readMealsInRange_(range.start, range.end, MEAL_TYPES);
   var protectedMap = {};
@@ -114,7 +114,7 @@ function apiMealsOverview(token, ym) {
 
 /** @param input { base64, filename, ym } @returns { rawRows, rows:[{_row, errors, menu}], ok, errorCount, replacedMeals } */
 function apiPreviewMealImport(token, input) {
-  requireSession(token);
+  requireSession_(token);
   if (!input || !input.base64) throw new Error('xlsx 파일을 선택하세요');
   if (!/^\d{4}-\d{2}$/.test(input.ym || '')) throw new Error('월을 선택하세요');
   var values = xlsxBase64ToValues_(input.base64, input.filename);
@@ -130,7 +130,7 @@ function apiPreviewMealImport(token, input) {
 
 /** xlsx 가져오기 반영(웹앱). 미리보기의 rawRows 를 되돌려 받아 서버에서 재검증 후 해당 끼니를 통째로 대체. */
 function apiApplyMealImport(token, input) {
-  requireSession(token);
+  requireSession_(token);
   // 클라이언트가 보낸 값을 그대로 믿지 않고 서버에서 다시 검증한다
   var v = validateMealImportRows(input.rawRows || [], monthRange(input.ym));
   if (!v.ok) return { ok: false, error: '오류 행 ' + v.errorCount + '건 — 반영하지 않았습니다' };

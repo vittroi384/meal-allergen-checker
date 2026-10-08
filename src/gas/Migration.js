@@ -9,12 +9,12 @@ var MIGRATION_VERSION = 1;
 
 /** 이관 JSON 객체 생성. 비밀값은 키 이름만 (설정 여부) 포함. */
 function buildMigrationExport_() {
-  var settings = readSettings();
+  var settings = readSettings_();
   var exported = {};
   SETTING_KEYS.forEach(function (k) { exported[k] = settings[k]; });
   var state = {};
-  STATE_KEYS.forEach(function (k) { var v = getState(k); if (v) state[k] = v; });
-  var configured = SECRET_KEYS.filter(function (k) { return k.indexOf('APP_PASSWORD') < 0 && hasSecret(k); });
+  STATE_KEYS.forEach(function (k) { var v = getState_(k); if (v) state[k] = v; });
+  var configured = SECRET_KEYS.filter(function (k) { return k.indexOf('APP_PASSWORD') < 0 && hasSecret_(k); });
   return {
     app: 'meal-allergen-checker',
     version: MIGRATION_VERSION,
@@ -49,14 +49,14 @@ function applyMigrationImport_(data) {
   Object.keys(data.settings).forEach(function (k) {
     if (SETTING_KEYS.indexOf(k) >= 0 && k !== '웹앱URL') settings[k] = data.settings[k];
   });
-  writeSettings(settings);
+  writeSettings_(settings);
   // 상태값도 복원하되 DEPLOYMENT_ID 는 새 계정의 배포 ID 를 유지해야 하므로 제외
   Object.keys(data.state || {}).forEach(function (k) {
-    if (STATE_KEYS.indexOf(k) >= 0 && k !== 'DEPLOYMENT_ID') setState(k, data.state[k]);
+    if (STATE_KEYS.indexOf(k) >= 0 && k !== 'DEPLOYMENT_ID') setState_(k, data.state[k]);
   });
   // 가져온 알림 시간 설정에 맞춰 트리거를 새로 등록
-  setupTriggers_(readSettings());
-  var missing = (data.secretsConfigured || []).filter(function (k) { return SECRET_KEYS.indexOf(k) >= 0 && !hasSecret(k); });
+  setupTriggers_(readSettings_());
+  var missing = (data.secretsConfigured || []).filter(function (k) { return SECRET_KEYS.indexOf(k) >= 0 && !hasSecret_(k); });
   return { imported: Object.keys(settings).length, secretsToEnter: missing };
 }
 
@@ -64,6 +64,7 @@ function applyMigrationImport_(data) {
 
 /** 시트 메뉴: 이관 JSON 을 만들어 복사용 다이얼로그로 표시. */
 function menuExportMigration() {
+  requireSheetUi_();
   var json = JSON.stringify(buildMigrationExport_(), null, 2);
   var t = HtmlService.createTemplateFromFile('ui/dialogs/migration_export');
   t.json = json;
@@ -72,12 +73,14 @@ function menuExportMigration() {
 
 /** 시트 메뉴: 이관 JSON 붙여넣기 다이얼로그 표시. */
 function menuImportMigration() {
+  requireSheetUi_();
   var html = HtmlService.createHtmlOutputFromFile('ui/dialogs/migration_import').setWidth(640).setHeight(520);
   SpreadsheetApp.getUi().showModalDialog(html, '이관용 설정 가져오기');
 }
 
-/** 다이얼로그에서 호출 (시트 편집 권한이 있는 사용자만 메뉴를 열 수 있으므로 세션 검사 없음) */
+/** 다이얼로그에서 호출 (시트 편집 권한이 있는 사용자만 메뉴를 열 수 있으므로 세션 검사 없음. 웹앱 경로는 requireSheetUi_ 로 차단) */
 function dialogImportMigration(text) {
+  requireSheetUi_();
   var parsed = parseMigrationJson_(text);
   if (!parsed.ok) return { ok: false, error: parsed.error };
   var r = applyMigrationImport_(parsed.data);
@@ -86,6 +89,7 @@ function dialogImportMigration(text) {
 
 /** 다이얼로그 미리보기용 */
 function dialogPreviewMigration(text) {
+  requireSheetUi_();
   var parsed = parseMigrationJson_(text);
   if (!parsed.ok) return { ok: false, error: parsed.error };
   var d = parsed.data;
